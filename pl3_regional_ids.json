@@ -1,0 +1,79 @@
+[
+    {
+        "name": "Project_List_3.0",
+        "region": "ALL",
+        "category": "master_project_list",
+        "webhook": "0000000000000000",
+        "sheetid": "3858046490306436"
+    },
+    {
+        "name": "PL2.0-INTAKE-FULL",
+        "category": "INTAKE",
+        "webhook": "5386405225490308",
+        "sheetid": "6270136630962052",
+	    "region": "INTAKE"
+    },
+    {   
+        "name": "hi_rpl",
+        "category": "regional_project_list",
+        "webhook": "3184872299751300",
+        "sheetid": "691453002311556",
+        "region": "HI"
+    },
+    {
+        "name": "ny_rpl",
+        "category": "regional_project_list",
+        "webhook": "1205751369754500",
+        "sheetid": "3506202769418116",
+        "region": "NY"
+    },
+    {
+        "name": "nca_rpl",
+        "category": "regional_project_list",
+        "webhook": "7644491462010756",
+        "sheetid": "2943252815996804",
+        "region": "NORCAL"
+    },
+    {
+        "name": "sca_rpl",
+        "category": "regional_project_list",
+        "webhook": "4900110439081860",
+        "sheetid": "5758002583103364",
+        "region": "SOCAL"
+    },
+    {
+        "name": "wa_rpl",
+        "category": "regional_project_list",
+        "webhook": "7011172764411780",
+        "sheetid": "1254402955732868",
+        "region": "WA"
+    },
+    {
+        "name": "fl_rpl",
+        "category": "regional_project_list",
+        "webhook": "1753956700448644",
+        "sheetid": "5195052629682052",
+        "region": "FL"
+    },
+    {
+        "name": "mtn_rpl",
+        "category": "regional_project_list",
+        "webhook": "1626413351626628",
+        "sheetid": "8009802396788612",
+        "region": "MTN."
+    },
+    {
+        "name": "atx_rpl",
+        "category": "regional_project_list",
+        "webhook": "0000000000000000",
+        "sheetid": "269240537245572",
+        "region": "ATX"
+    },
+    {
+        "name": "ne_rpl",
+        "category": "regional_project_list",
+        "webhook": "0000000000000000",
+        "sheetid": "5898740071458692",
+        "region": "NE"
+    }
+]
