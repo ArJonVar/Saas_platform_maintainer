@@ -140,7 +140,12 @@ class Saas_admin:
         reduced_rows = [i.get('cells') for i in reduced_sheet.get('rows')]
         val_df = pd.DataFrame(self.filter_value_by_type(reduced_rows, 'objectValue'), self.user_column_names)
         email_list = self.grab_emails_from_data(val_df)
-        return [email for email in email_list if not('FUTURE' in email or 'tbd' in email)]
+        email_list_processed= [email for email in email_list if not('FUTURE' in email or 'tbd' in email)]
+        if len(email_list_processed) == 0:
+            return ['none']
+        else:
+            return email_list_processed
+    
     #endregion
     def saas_bool_generator(self, link, enum, column_name):
         '''uses the saas sheet to check if someone requested assets. If they are not created and not requested, they will not go through'''
@@ -502,9 +507,12 @@ class Saas_admin:
     def prepare_new_permission_group(self):
         permission_members = []
         for employee in self.proj_dict.get("user_emails"):
-            for user in self.eg_user_list:
-                if employee == user.get("email"):
-                    permission_members.append({"value":user.get("id")})
+            if employee == "none":
+                pass
+            else:
+                for user in self.eg_user_list:
+                    if employee == user.get("email"):
+                        permission_members.append({"value":user.get("id")})
         return permission_members
     def generate_permission_group(self, permission_members):
         url = "https://dowbuilt.egnyte.com/pubapi/v2/groups"
@@ -513,8 +521,11 @@ class Saas_admin:
         headers["Authorization"] = f"Bearer {self.egnyte_token}"
         headers["Content-Type"] = "application/json"
 
-        data_raw = '{"displayName":"' +  self.proj_dict.get("name")+"_"+self.proj_dict.get("enum")  +'", "members":' + str(permission_members) + '}'
-        data = re.sub("\'", '"', data_raw)
+        if len(permission_members) == 0:
+            data_raw='{"displayName":"' +  self.proj_dict.get("name")+"_"+self.proj_dict.get("enum") + '}'
+        else:
+            data_raw = '{"displayName":"' +  self.proj_dict.get("name")+"_"+self.proj_dict.get("enum")  +'", "members":' + str(permission_members) + '}'
+            data = re.sub("\'", '"', data_raw)
 
         resp = requests.post(url, headers=headers, data=data)
         resp_dict = json.loads(resp.content.decode("utf-8"))
