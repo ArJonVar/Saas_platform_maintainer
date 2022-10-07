@@ -1,7 +1,11 @@
+from saasadmin_functs_api import Saas_admin, sensative_smartsheet_token, sensative_egnyte_token
+from logger import ghetto_logger
 from typing import List
 from fastapi import FastAPI, HTTPException
-from models import User, Gender, Role, User_Update
+from models import User, Gender, Role, User_Update, Webhook
 from uuid import UUID, uuid4
+
+log=ghetto_logger("main.py")
 
 app = FastAPI()
 
@@ -20,13 +24,23 @@ db: List[User] = [
 ] 
 
 @app.get("/")
-
 async def root():
     return {"Hello":"Mundo"}
 
+@app.post("/saas_admin")
+async def saas_admin(wh: Webhook):
+    id = wh.webhookId
+    log.new_line(f"{id}: {wh}")
+    for event in wh.events:
+        row_id = event.get("rowId")
+        print(row_id)
+        sa = Saas_admin(sensative_smartsheet_token, sensative_egnyte_token)
+        sa.run(str(row_id))
+    log.new_line("finished.")
+
 @app.get("/api/v1/users")
 async def fetch_users():
-    return db;
+    return db
  
 @app.post("/api/v1/users")
 async def register_user(user: User):

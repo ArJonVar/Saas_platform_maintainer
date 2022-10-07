@@ -1,3 +1,4 @@
+import json
 from typing import Optional, List
 from uuid import UUID, uuid4
 from pydantic import BaseModel
@@ -26,3 +27,10 @@ class User_Update(BaseModel):
     middle_name: Optional[str]
     roles: Optional[List[Role]]
 
+class Webhook(BaseModel):
+    nonce: str
+    timestamp: str
+    webhookId: int
+    scope: str
+    scopeObjectId: Optional[int]
+    events: List[dict]
