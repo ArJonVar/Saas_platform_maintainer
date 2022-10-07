@@ -364,7 +364,7 @@ class Saas_admin:
         url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/{path}"
 
         headers = CaseInsensitiveDict()
-        headers["Authorization"] = f"Bearer {sa.egnyte_token}"
+        headers["Authorization"] = f"Bearer {self.egnyte_token}"
         headers["Content-Type"] = "application/json"        
 
         data = '{"restrict_move_delete": "true"}'       
@@ -374,7 +374,7 @@ class Saas_admin:
         url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/{path}"
 
         headers = CaseInsensitiveDict()
-        headers["Authorization"] = f"Bearer {sa.egnyte_token}"
+        headers["Authorization"] = f"Bearer {self.egnyte_token}"
 
 
         resp = requests.get(url, headers=headers)
