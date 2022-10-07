@@ -702,6 +702,7 @@ class Saas_admin:
         # self.run_eg(self.proj_dict.get("eg_link"))
         self.execute_link_post()
         self.log.new_line(f"fineeto w/ {self.proj_dict.get('name')}")
+        self.log.new_line(" ")
 #endregion
     def useless(self):
         '''exists to make the other regions close nicely (the final region on a page cannot be closed if nothing is below it)'''
