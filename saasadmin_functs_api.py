@@ -282,7 +282,7 @@ class Saas_admin:
         except ApiError:
             self.log.new_line('project-admins already have access to workspace')
     def generate_ss_link(self, wrkspc_id):
-        workspace = sa.smart.Workspaces.get_workspace(wrkspc_id)
+        workspace = self.smart.Workspaces.get_workspace(wrkspc_id)
         link = workspace.to_dict().get("permalink")
         return link
 #endregion
