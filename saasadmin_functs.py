@@ -279,7 +279,7 @@ class Saas_admin:
         except ApiError:
             print('project-admins already have access to workspace')
     def generate_ss_link(self, wrkspc_id):
-        workspace = sa.smart.Workspaces.get_workspace(wrkspc_id)
+        workspace = self.smart.Workspaces.get_workspace(wrkspc_id)
         link = workspace.to_dict().get("permalink")
         return link
 #endregion
@@ -361,7 +361,7 @@ class Saas_admin:
         url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/{path}"
 
         headers = CaseInsensitiveDict()
-        headers["Authorization"] = f"Bearer {sa.egnyte_token}"
+        headers["Authorization"] = f"Bearer {self.egnyte_token}"
         headers["Content-Type"] = "application/json"        
 
         data = '{"restrict_move_delete": "true"}'       
@@ -371,7 +371,7 @@ class Saas_admin:
         url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/{path}"
 
         headers = CaseInsensitiveDict()
-        headers["Authorization"] = f"Bearer {sa.egnyte_token}"
+        headers["Authorization"] = f"Bearer {self.egnyte_token}"
 
 
         resp = requests.get(url, headers=headers)
@@ -593,7 +593,7 @@ class Saas_admin:
         sheet_columns = sheet.get_column_df()
         row_ids = sheet.grid_row_ids
         sheet.df["id"]=row_ids
-
+        #IF A CHECK DOES NOT WORK ITS B/C OF THIS!! ([0])
         update_bool_column_id = sheet_columns.loc[sheet_columns['title'] == "Update Done = CHECKED"]["id"].tolist()[0]
         # returns all rows that have updated this enum
         rows = sheet.df.loc[sheet.df['ENUMERATOR'] == self.proj_dict.get("enum")]["id"].tolist()
@@ -602,21 +602,31 @@ class Saas_admin:
 
         return posting_data
     def post_update(self, posting_data):
-        new_row = self.smart.models.Row()
-        new_row.id = posting_data.get("row")
-
-        new_cell = self.smart.models.Cell()
-        new_cell.column_id = posting_data.get("update_col_id")
-        new_cell.value = "1"
-        new_cell.strict = False
-        # Build the row to update
+        new_cell = self.smart.models.Cell({'column_id' : posting_data.get("update_col_id"), 'value': "1", 'strict': False})
+        new_row = self.smart.models.Row({'id':posting_data.get("row")})
         new_row.cells.append(new_cell)
+
+        # data={'id':post.ing_data.get("row"), 'column_id':posting_data.get("update_col_id"), 'value':'1', "strict":False}
+        # print(data)
+
         if str(new_row.to_dict().get("cells")) != "None":
             # Update rows
             updated_row = self.smart.Sheets.update_rows(
               self.saas_id,      # sheet_id
               [new_row])
+            print('post had result of: ', updated_row.message)
             print(f'checked update bool in Saas Admin Page')
+#endregion
+#region cron job prep
+    def get_row_array(self):
+        '''gets array of row ids that have open saas status in saas intake form'''
+        sheet = grid(self.saas_id)
+        sheet.fetch_content()
+        sheet_columns = sheet.get_column_df()
+        row_ids = sheet.grid_row_ids
+        sheet.df["id"]=row_ids
+        row_id_array = sheet.df.loc[sheet.df['Saas Status'] == "Open"]['id'].tolist()
+        return row_id_array
 #endregion
 #region change decisions
     def ss_new(self):
@@ -719,15 +729,38 @@ class Saas_admin:
 
         self.sheet_id = self.sheet_id_generator(self.enum)
         self.proj_dict = self.extract_projinfo_w_enum(self.sheet_id, self.enum)
-        print("general project data: ", self.proj_dict)
+        print(f'''
+                            {self.proj_dict.get('name')} PROJECT DATA:  
+                            
+enum: {self.proj_dict.get('enum')}, name: {self.proj_dict.get('name')}
+region: {self.proj_dict.get('region')}, state: {self.proj_dict.get('state')}
+user: {self.proj_dict.get('user')}, user_emails: {self.proj_dict.get('user_emails')}
+eg_bool: {self.proj_dict.get('eg_bool')}, ss_bool: {self.proj_dict.get('ss_bool')}
+eg_link: {self.proj_dict.get('eg_link')}
+ss_link: {self.proj_dict.get('ss_link')}
+
+''')
         self.run_ss(self.proj_dict.get("ss_link"), self.proj_dict.get("ss_bool"))
         self.run_eg(self.proj_dict.get("eg_link"), self.proj_dict.get("eg_bool"))
         self.execute_link_post()
+        if self.proj_dict.get('ss_link') == "none" and self.proj_dict.get('eg_link') == "none" and str(self.proj_dict.get('ss_bool')) == "False" and str(self.proj_dict.get('eg_bool')) == "False" :
+            # if there is absolutely nothing to do, just post that it was updated in check box
+            self.post_update(self.generate_update_post_data())
         print(f"fineeto w/ {self.proj_dict.get('name')}")
+    def cron_run(self):
+        array = self.get_row_array()
+        for id in array:
+            try:
+                self.run(str(id))
+                print("15 sec sleep between updates")
+                time.sleep(5)
+            except:
+                pass
+        print("Cron Finished")
     def partial_run(self, data):
         '''main f(x), data is assumed to be enumerator unless it is long, then assumed to be row id from Saas Intake Forms (https://app.smartsheet.com/sheets/4X2m4ChQjgGh2gf2Hg475945rwVpV5Phmw69Gp61?view=grid)
         the function gathers a dictionary of project info (name/region/users who need access/links)
-        then  runs through egnyte and ss run protocol'''
+        '''
         self.enum=data
         
         if len(data) > 7:
@@ -736,7 +769,17 @@ class Saas_admin:
         
         self.sheet_id = self.sheet_id_generator(self.enum)
         self.proj_dict = self.extract_projinfo_w_enum(self.sheet_id, self.enum)
-        print("general project data: ", self.proj_dict)
+        print(f'''
+                            {self.proj_dict.get('name')} PROJECT DATA: 
+                            
+enum: {self.proj_dict.get('enum')}, name: {self.proj_dict.get('name')}
+region: {self.proj_dict.get('region')}, state: {self.proj_dict.get('state')}
+user: {self.proj_dict.get('user')}, user_emails: {self.proj_dict.get('user_emails')}
+eg_bool: {self.proj_dict.get('eg_bool')}, ss_bool: {self.proj_dict.get('ss_bool')}
+eg_link: {self.proj_dict.get('eg_link')}
+ss_link: {self.proj_dict.get('ss_link')}
+
+''')
         self.execute_link_post()
         print(f"fineeto w/ {self.proj_dict.get('name')}")
 #endregion
@@ -747,5 +790,8 @@ class Saas_admin:
 #region run
 if __name__ == "__main__":
     sa = Saas_admin("smartsheet_token", "egnyte_token")
+    # for cron run:
+    sa.cron_run()
+    # for individual run:
     sa.run("data")
 #endregion
