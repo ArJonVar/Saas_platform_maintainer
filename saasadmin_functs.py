@@ -34,6 +34,7 @@ class Saas_admin:
         self.pl30_id= 3858046490306436
         self.field_admins_id = 2077914675079044
         self.project_admins_id= 2231803353294724
+        self.project_review_id = 1394789389232004
         self.eg_template_path ='Shared/Projects/z_Templates/Project%20Folder%20Template' 
         self.ss_link = ""
         self.eg_link = "" 
@@ -150,24 +151,28 @@ class Saas_admin:
         else:
             return email_list_processed
     #endregion
+    def value_from_saas_admin(self, enum, column_name):
+        saas_sheet = grid(self.saas_id)
+        saas_sheet.fetch_content()
+        proj_info_df = saas_sheet.df.loc[saas_sheet.df['ENUMERATOR'] == enum]
+        content = self.try_except_pattern(proj_info_df[column_name].values.tolist()[-1])
+
+        return content
     def saas_bool_generator(self, link, enum, column_name):
         '''uses the saas sheet to check if someone requested assets. If they are not created and not requested, they will not go through'''
         try:
-            saas_sheet = grid(self.saas_id)
-            saas_sheet.fetch_content()
-            proj_info_df = saas_sheet.df.loc[saas_sheet.df['ENUMERATOR'] == enum]
-            num = self.try_except_pattern(proj_info_df[column_name].values.tolist()[-1])
+            num = self.value_from_saas_admin(enum, column_name)
 
-            if link == "none" and num == "0":
-                saas_bool = False
+            if str(link) == "none" and str(num) == "0":
+                content = False
             else:
-                saas_bool = True
+                content = True
 
         except:
             print("wasn't on saas_sheet")
-            saas_bool = True
+            content = True
 
-        return saas_bool
+        return content
     def extract_projinfo_w_enum(self, sheet_id, enum):
         '''builds the proj_dict object that guides the action phase of this class'''
         sheet = grid(sheet_id)
@@ -187,12 +192,37 @@ class Saas_admin:
         eg_link = self.try_except_pattern(proj_info_df['EGNYTE'].values.tolist()[0])
         ss_bool = self.saas_bool_generator(ss_link, enum, 'SM Conditional')
         eg_bool = self.saas_bool_generator(eg_link, enum, 'EGN Conditional')
+        update_bool = self.saas_bool_generator("none", enum, 'Update Done = CHECKED')
+        action_type = self.value_from_saas_admin(enum, 'ADMINISTRATIVE Action Type')
         state = self.try_except_pattern(proj_info_df['STATE'].values.tolist()[0])
         users = self.process_permission_users(proj_info_df)
         user_emails = self.process_permission_emails(sheet_id)
-        proj_dict = {'enum':enum, 'name': name, 'region':region, 'ss_link': ss_link, 'eg_link': eg_link, 'ss_bool': ss_bool, 'eg_bool': eg_bool, 'users':users, 'user_emails': user_emails, 'state':state}
+        proj_dict = {'enum':enum, 'name': name, 'region':region, 'ss_link': ss_link, 'eg_link': eg_link, 'action_type':action_type, 'update_bool':update_bool, 'ss_bool': ss_bool, 'eg_bool': eg_bool, 'users':users, 'user_emails': user_emails, 'state':state}
         return proj_dict
-
+    def check_finished_r_unrequested(self, proj_dict, str):
+        if proj_dict.get(f"{str}_bool") == True and proj_dict.get(f"{str}_link") != "none":
+            content = "finished"
+        elif proj_dict.get(f"{str}_bool") == False and proj_dict.get(f"{str}_link") == "none":
+            content = "unrequested"
+        else:
+            content = "requested"
+        
+        return content
+    def audit_skips(self, proj_dict):
+        if proj_dict.get('action_type').find("NEW") != -1:
+            if self.check_finished_r_unrequested(proj_dict, "ss") != "requested" and self.check_finished_r_unrequested(proj_dict, "eg") != "requested":
+                skip_bool = True
+            else: 
+                skip_bool = False
+        elif proj_dict.get('action_type').find("UPDATE") != -1:
+            if proj_dict.get('update_bool') == False:
+                skip_bool = True
+            else:
+                skip_bool = False
+        else:
+            skip_bool = False
+            print("Audit_skip did not find data it needed for audit")
+        return skip_bool
 #endregion
 #region ss change components
     def get_ss_userlist(self):
@@ -278,6 +308,16 @@ class Saas_admin:
             )
         except ApiError:
             print('project-admins already have access to workspace')
+        try:
+            response = self.smart.Workspaces.share_workspace(
+                wrkspc_id,
+            smartsheet.models.Share({
+              'access_level': 'EDITOR',
+              'groupId': self.project_review_id,
+            })
+            )
+        except ApiError:
+            print('project-review already have access to workspace')
     def generate_ss_link(self, wrkspc_id):
         workspace = self.smart.Workspaces.get_workspace(wrkspc_id)
         link = workspace.to_dict().get("permalink")
@@ -593,10 +633,10 @@ class Saas_admin:
         sheet_columns = sheet.get_column_df()
         row_ids = sheet.grid_row_ids
         sheet.df["id"]=row_ids
-        #IF A CHECK DOES NOT WORK ITS B/C OF THIS!! ([0])
         update_bool_column_id = sheet_columns.loc[sheet_columns['title'] == "Update Done = CHECKED"]["id"].tolist()[0]
         # returns all rows that have updated this enum
         rows = sheet.df.loc[sheet.df['ENUMERATOR'] == self.proj_dict.get("enum")]["id"].tolist()
+        #IF A CHECK DOES NOT WORK ITS B/C OF THIS!! ([0]) #problem #search #find
         row_id = rows[len(rows)-1]
         posting_data = {"update_col_id" : update_bool_column_id,"row": row_id}
 
@@ -702,51 +742,56 @@ class Saas_admin:
         self.eg_user_list = self.recusively_generate_eg_user_list(1, [])
         
         if link == "none" and bool == True:
-            self.eg_new()
             # pass
+            self.eg_new()
 
         elif self.proj_dict.get("eg_link") != "none": 
-            self.eg_update()
             # pass
+            self.eg_update()
     def run_ss(self, link, bool):
         self.ss_user_list = self.get_ss_userlist()
         
         if link == "none" and bool == True:
+            # pass
             self.ss_new()
-            # pass
+
         elif self.proj_dict.get("ss_link") != "none":
-            self.ss_update()
             # pass
+            self.ss_update()
+    def run_print_statements(self, dict):
+        print(f'''
+                            {dict.get('name')} PROJECT DATA:  
+                            
+enum: {dict.get('enum')}, name: {dict.get('name')}
+region: {dict.get('region')}, state: {dict.get('state')}
+user: {dict.get('user')}, user_emails: {dict.get('user_emails')}
+action_type: {dict.get('action_type')}, update_bool:{dict.get('update_bool')},
+eg_bool: {dict.get('eg_bool')}, ss_bool: {dict.get('ss_bool')}
+eg_link: {dict.get('eg_link')}
+ss_link: {dict.get('ss_link')}
+
+''')
     def run(self, data):
         '''main f(x), data is assumed to be enumerator unless it is long, then assumed to be row id from Saas Intake Forms (https://app.smartsheet.com/sheets/4X2m4ChQjgGh2gf2Hg475945rwVpV5Phmw69Gp61?view=grid)
         the function gathers a dictionary of project info (name/region/users who need access/links)
         then  runs through egnyte and ss run protocol'''
         self.enum=data
-        
         if len(data) > 7:
             #data will row_id, which would happen if this was triggered via webhook
             self.enum = self.extract_enum_from_rowid(data)
-
         self.sheet_id = self.sheet_id_generator(self.enum)
         self.proj_dict = self.extract_projinfo_w_enum(self.sheet_id, self.enum)
-        print(f'''
-                            {self.proj_dict.get('name')} PROJECT DATA:  
-                            
-enum: {self.proj_dict.get('enum')}, name: {self.proj_dict.get('name')}
-region: {self.proj_dict.get('region')}, state: {self.proj_dict.get('state')}
-user: {self.proj_dict.get('user')}, user_emails: {self.proj_dict.get('user_emails')}
-eg_bool: {self.proj_dict.get('eg_bool')}, ss_bool: {self.proj_dict.get('ss_bool')}
-eg_link: {self.proj_dict.get('eg_link')}
-ss_link: {self.proj_dict.get('ss_link')}
-
-''')
-        self.run_ss(self.proj_dict.get("ss_link"), self.proj_dict.get("ss_bool"))
-        self.run_eg(self.proj_dict.get("eg_link"), self.proj_dict.get("eg_bool"))
-        self.execute_link_post()
-        if self.proj_dict.get('ss_link') == "none" and self.proj_dict.get('eg_link') == "none" and str(self.proj_dict.get('ss_bool')) == "False" and str(self.proj_dict.get('eg_bool')) == "False" :
-            # if there is absolutely nothing to do, just post that it was updated in check box
-            self.post_update(self.generate_update_post_data())
-        print(f"fineeto w/ {self.proj_dict.get('name')}")
+        self.run_print_statements(self.proj_dict)
+        if self.audit_skips(self.proj_dict) == True:
+            print(f"{self.proj_dict.get('name')} skipped b/c already updated")
+        else:
+            self.run_ss(self.proj_dict.get("ss_link"), self.proj_dict.get("ss_bool"))
+            self.run_eg(self.proj_dict.get("eg_link"), self.proj_dict.get("eg_bool"))
+            self.execute_link_post()
+            if self.proj_dict.get('ss_link') == "none" and self.proj_dict.get('eg_link') == "none" and str(self.proj_dict.get('ss_bool')) == "False" and str(self.proj_dict.get('eg_bool')) == "False" :
+                # if there is absolutely nothing to do, just post that it was updated in check box
+                self.post_update(self.generate_update_post_data())
+            print(f"fineeto w/ {self.proj_dict.get('name')}")
     def cron_run(self):
         array = self.get_row_array()
         for id in array:
@@ -762,30 +807,20 @@ ss_link: {self.proj_dict.get('ss_link')}
         the function gathers a dictionary of project info (name/region/users who need access/links)
         '''
         self.enum=data
-        
         if len(data) > 7:
             #data will row_id, which would happen if this was triggered via webhook
             self.enum = self.extract_enum_from_rowid(data)
-        
         self.sheet_id = self.sheet_id_generator(self.enum)
         self.proj_dict = self.extract_projinfo_w_enum(self.sheet_id, self.enum)
-        print(f'''
-                            {self.proj_dict.get('name')} PROJECT DATA: 
-                            
-enum: {self.proj_dict.get('enum')}, name: {self.proj_dict.get('name')}
-region: {self.proj_dict.get('region')}, state: {self.proj_dict.get('state')}
-user: {self.proj_dict.get('user')}, user_emails: {self.proj_dict.get('user_emails')}
-eg_bool: {self.proj_dict.get('eg_bool')}, ss_bool: {self.proj_dict.get('ss_bool')}
-eg_link: {self.proj_dict.get('eg_link')}
-ss_link: {self.proj_dict.get('ss_link')}
-
-''')
-        self.execute_link_post()
+        self.run_print_statements(self.proj_dict)
+        if self.audit_skips(self.proj_dict) == True:
+            print(f"{self.proj_dict.get('name')} skipped b/c already updated")
         print(f"fineeto w/ {self.proj_dict.get('name')}")
 #endregion
     def useless(self):
         '''exists to make the other regions close nicely (the final region on a page cannot be closed if nothing is below it)'''
         pass
+
 
 #region run
 if __name__ == "__main__":
