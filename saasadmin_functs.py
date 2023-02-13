@@ -322,6 +322,14 @@ class Saas_admin:
         workspace = self.smart.Workspaces.get_workspace(wrkspc_id)
         link = workspace.to_dict().get("permalink")
         return link
+    def audit_wrkspc_isnew(self):
+        isnew_bool=True
+        response = self.smart.Workspaces.list_workspaces(include_all=True)
+        for workspace in response.to_dict().get("data"):
+            if workspace.get("name") == f'Project_{self.proj_dict.get("name")}_{self.proj_dict.get("enum")}':
+                isnew_bool = False
+                print(f'a workspace audit within smartsheet revealed that Project_{self.proj_dict.get("name")}_{self.proj_dict.get("enum")} already exists')
+        return isnew_bool
 #endregion
 #region eg change components
     
@@ -750,9 +758,9 @@ class Saas_admin:
             self.eg_update()
     def run_ss(self, link, bool):
         self.ss_user_list = self.get_ss_userlist()
-        
-        if link == "none" and bool == True:
-            # pass
+        isnew_bool = self.audit_wrkspc_isnew()
+         
+        if link == "none" and bool == True and isnew_bool==True:
             self.ss_new()
 
         elif self.proj_dict.get("ss_link") != "none":
