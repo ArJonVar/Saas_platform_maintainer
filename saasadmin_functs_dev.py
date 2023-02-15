@@ -1,5 +1,8 @@
 #region imports and variables
+import sys
+import pandas as pd
 import smartsheet
+import numpy as np
 import time
 from datetime import datetime
 from smartsheet.exceptions import ApiError
@@ -10,31 +13,32 @@ import json
 import re
 import time
 import pandas as pd
-from logger import ghetto_logger
-from globals import sensative_egnyte_token, sensative_smartsheet_token
 
-dev_bool = False
+dev_bool = True
+sensative_egnyte_instantiation = "grant_type=password&username=arielvardy&password=C@KC7cVRkE4tCzp&client_id=cmq9q7pbtzd9skfk88qa3vzu&client_secret=5QrDhUrfjWug7j9pzmpvfsZKFPwq7kR7JufcfGgbq7NcwN5ESH"
+sensative_egnyte_token = 'fcqv9qnc2a7sk389xvuqp3cn'
+sensative_smartsheet_token = '9VpwGupJ3OR9AxVj8GagGzq3xiIPGKepJWI6d'
 #endregion
 
 class Saas_admin:
     '''This class creates and updates Smartsheet and Egnyte assets and links to project list'''
     def __init__(self, smartsheet_token, egnyte_token , dev_bool = False):
         raw_now = datetime.now()
-        self.log=ghetto_logger("saasadmin_functs.py")
-        self.now = raw_now.strftime("%m/%d/%Y %H:%M:%S")
+        self.now = raw_now.strftime("%d/%m/%Y %H:%M:%S")
         self.dev_bool= dev_bool
         self.smartsheet_token = smartsheet_token
         self.egnyte_token = egnyte_token 
         grid.token=self.smartsheet_token
         self.smart = smartsheet.Smartsheet(access_token=self.smartsheet_token)
         self.smart.errors_as_exceptions(True)
-        self.wkspc_template_id = 5301436075534212
+        self.wkspc_template_id = 258350840604548
         self.automated_wkspc_template_id = 7768425427691396
         self.saas_id = 5728420458981252 
         self.pl30_id= 3858046490306436
         self.field_admins_id = 2077914675079044
         self.project_admins_id= 2231803353294724
         self.project_review_id = 1394789389232004
+        self.pythscript_checkbox_column_id=1907059135932292
         self.eg_template_path ='Shared/Projects/z_Templates/Project%20Folder%20Template' 
         self.ss_link = ""
         self.eg_link = "" 
@@ -169,7 +173,7 @@ class Saas_admin:
                 content = True
 
         except:
-            self.log.new_line("wasn't on saas_sheet")
+            print("wasn't on saas_sheet")
             content = True
 
         return content
@@ -221,7 +225,7 @@ class Saas_admin:
                 skip_bool = False
         else:
             skip_bool = False
-            self.log.new_line("Audit_skip did not find data it needed for audit")
+            print("Audit_skip did not find data it needed for audit")
         return skip_bool
 #endregion
 #region ss change components
@@ -287,7 +291,7 @@ class Saas_admin:
                 })
                 )
             except ApiError:
-                self.log.new_line(f'{email} already have access to workspace')
+                print(f'{email} already have access to workspace')
         try:
             response = self.smart.Workspaces.share_workspace(
                 wrkspc_id,
@@ -297,7 +301,7 @@ class Saas_admin:
             })
             )
         except ApiError:
-            self.log.new_line('field-admins already have access to workspace')
+            print('field-admins already have access to workspace')
         try:
             response = self.smart.Workspaces.share_workspace(
                 wrkspc_id,
@@ -307,7 +311,7 @@ class Saas_admin:
             })
             )
         except ApiError:
-            self.log.new_line('project-admins already have access to workspace')
+            print('project-admins already have access to workspace')
         try:
             response = self.smart.Workspaces.share_workspace(
                 wrkspc_id,
@@ -317,7 +321,7 @@ class Saas_admin:
             })
             )
         except ApiError:
-            self.log.new_line('project-review already have access to workspace')
+            print('project-review already have access to workspace')
     def generate_ss_link(self, wrkspc_id):
         workspace = self.smart.Workspaces.get_workspace(wrkspc_id)
         link = workspace.to_dict().get("permalink")
@@ -328,7 +332,7 @@ class Saas_admin:
         for workspace in response.to_dict().get("data"):
             if workspace.get("name") == f'Project_{self.proj_dict.get("name")}_{self.proj_dict.get("enum")}':
                 isnew_bool = False
-                self.log.new_line(f'a workspace audit within smartsheet revealed that Project_{self.proj_dict.get("name")}_{self.proj_dict.get("enum")} already exists')
+                print(f'a workspace audit within smartsheet revealed that Project_{self.proj_dict.get("name")}_{self.proj_dict.get("enum")} already exists')
 
         return isnew_bool
 #endregion
@@ -375,7 +379,7 @@ class Saas_admin:
             position_of_old_name=len(split_slash)-1
             old_name = split_slash[position_of_old_name]
             final_path = re.sub(old_name, new_name, path)
-            # self.log.new_line('final path', final_path)
+            # print('final path', final_path)
             return final_path
     def change_folder_name(self, url, path):
             headers = CaseInsensitiveDict()
@@ -456,7 +460,7 @@ class Saas_admin:
         return recursion_bool
     def recusively_generate_eg_user_list(self, index, eg_user_list):
         recursion_bool = self.eg_user_list_api_call(index, eg_user_list)
-        # self.log.new_line('index: ', index, " length: ", len(eg_user_list))
+        # print('index: ', index, " length: ", len(eg_user_list))
         if recursion_bool == True:
             new_index = int(index) + 100
             self.recusively_generate_eg_user_list(new_index, eg_user_list)
@@ -465,7 +469,7 @@ class Saas_admin:
 
     #update permission group names
     def url_to_permission_report(self, url):
-            # self.log.new_line(url, 'start')
+            # print(url, 'start')
             try:
                 headers = CaseInsensitiveDict()
                 headers["Authorization"] = f"Bearer {self.egnyte_token}"
@@ -474,7 +478,7 @@ class Saas_admin:
                 report_dict = json.loads(resp.content.decode("utf-8"))
                 return report_dict
             except:
-                self.log.new_line("url did not yield folder that existed")
+                print("url did not yield folder that existed")
     def permission_report_to_full(self, report):
             permission_list = []
             try:
@@ -489,7 +493,7 @@ class Saas_admin:
                         permission_list.remove(item)
                 return permission_list[0]
             except:
-                self.log.new_line("no group has full permissions in this folder")
+                print("no group has full permissions in this folder")
     def find_id_from_group_name(self, group_name):
             url_group_name = re.sub("\s", "%20", group_name)
             url = 'https://dowbuilt.egnyte.com/pubapi/v2/groups?filter=displayName%20eq%20"' + f"{url_group_name}" + '"'
@@ -541,7 +545,7 @@ class Saas_admin:
         for user in user_updates_list:
             for user_data in self.eg_user_list:
                 if user == user_data.get("email"):
-                    self.log.new_line(f'adding {user_data.get("name")} to permission group')
+                    print("adding ", user_data.get("name"), " to permission group")
                     self.update_permission_group_members(user_data.get("id"))
     def update_permission_group_members(self,user_data):
         url = f"https://dowbuilt.egnyte.com/pubapi/v2/groups/{self.permission_group_id}"
@@ -595,12 +599,17 @@ class Saas_admin:
             state = 'NorCal'
         elif self.proj_dict.get('region') == "SOCAL":
             state = 'SoCal'
+        elif self.proj_dict.get('state') == "CA":
+            # rare case that the state is Ca but the reigon is not norcal/socal
+            state = 'NorCal'
         data = '{"groupPerms":{"' + f"{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}" + '":"Full", "State_' + state + '":"Editor", "Projects": "Editor"}}'
         resp = requests.post(url, headers=headers, data=data)
 
 
 #endregion
 #region ss post
+    def check_pyscript_column(self):
+        pass
     def get_post_ids(self):
         '''uses the regional sheet id to gather column ids for Egnyte and Smartsheet column and row Id for row with the enum we are working with'''
         sheet = grid(self.sheet_id)
@@ -634,7 +643,7 @@ class Saas_admin:
             updated_row = self.smart.Sheets.update_rows(
               self.sheet_id,      # sheet_id
               [new_row])
-            self.log.new_line(f'link-post into {self.proj_dict.get("region")} Project List complete')
+            print(f'link-post into {self.proj_dict.get("region")} Project List complete')
     def generate_update_post_data(self):
         '''uses the regional sheet id to gather column ids for Egnyte and Smartsheet column and row Id for row with the enum we are working with'''
         sheet = grid(self.saas_id)
@@ -656,15 +665,15 @@ class Saas_admin:
         new_row.cells.append(new_cell)
 
         # data={'id':post.ing_data.get("row"), 'column_id':posting_data.get("update_col_id"), 'value':'1', "strict":False}
-        # self.log.new_line(data)
+        # print(data)
 
         if str(new_row.to_dict().get("cells")) != "None":
             # Update rows
             updated_row = self.smart.Sheets.update_rows(
               self.saas_id,      # sheet_id
               [new_row])
-            self.log.new_line(f'post had result of: {updated_row.message}')
-            self.log.new_line(f'checked update bool in Saas Admin Page')
+            print('post had result of: ', updated_row.message)
+            print(f'checked update bool in Saas Admin Page')
 #endregion
 #region cron job prep
     def get_row_array(self):
@@ -679,29 +688,32 @@ class Saas_admin:
 #endregion
 #region change decisions
     def ss_new(self):
-        self.log.new_line(f"Creating Smartsheet Workspace for {self.proj_dict.get('name')}")
+        print(f"Creating Smartsheet Workspace for {self.proj_dict.get('name')}")
         new_wrkspc =  self.copy_template(self.proj_dict.get("name"), self.enum)
         self.wrkspc_id = new_wrkspc.get("data").get("id")
         self.ss_permission_setting(self.wrkspc_id, self.proj_dict, self.ss_user_list)
         self.ss_link = self.generate_ss_link(self.wrkspc_id)
-        self.log.new_line("ss creation complete")
+        print("ss creation complete")
     def ss_update(self):           
-        self.log.new_line(f"Updating Smartsheet Workspace for {self.proj_dict.get('name')}")
+        print(f"Updating Smartsheet Workspace for {self.proj_dict.get('name')}")
         self.wrkspc_id =  self.find_wrkspc_id_from_enum(self.proj_dict.get("ss_link"))
         self.rename_wrkspc(self.wrkspc_id, self.proj_dict.get("name"), self.enum)
         self.ss_permission_setting(self.wrkspc_id, self.proj_dict, self.ss_user_list)
         
         #update saas admin
         self.post_update(self.generate_update_post_data())
-        self.log.new_line("ss update complete")
+        print("ss update complete")
     def eg_new(self):
-        self.log.new_line(f"Creating Egnyte Folder for {self.proj_dict.get('name')}")
+        print(f"Creating Egnyte Folder for {self.proj_dict.get('name')}")
         if self.proj_dict.get('state') != "CA":
             path = f"Shared/Projects/{self.proj_dict.get('state')}/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
         elif self.proj_dict.get('region') == "NORCAL":
             path = f"Shared/Projects/NorCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
         elif self.proj_dict.get('region') == "SOCAL":
             path = f"Shared/Projects/SoCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"  
+        elif self.proj_dict.get('state') == "CA":
+            # in the rare case that region is not cali but the state is...
+             path = f"Shared/Projects/NorCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
         self.create_folder(path)
         permission_group = self.prepare_new_permission_group()
         self.permission_group_id = self.generate_permission_group(permission_group)
@@ -709,19 +721,19 @@ class Saas_admin:
         self.copy_template_to_new_folder(path)
         self.restrict_move_n_delete(path)
         self.eg_link = self.generate_folder_link(path)
-        self.log.new_line('eg creation complete')
+        print('eg creation complete')
     def eg_update(self):
         asset_name = self.proj_dict.get('name') + "_" + self.proj_dict.get('enum')
-        self.log.new_line(f"updating Egnyte for {asset_name}")
-        self.log.new_line("sleeping for 5 sec...")
+        print(f"updating Egnyte for {asset_name}")
+        print("sleeping for 5 sec...")
         time.sleep(5)
         folder_id = self.generate_id_from_url(self.proj_dict.get("eg_link"))
         self.path = self.generate_path_from_id(folder_id)
         
         #update permission group
-        self.log.new_line("sleeping for 10 sec...")
+        print("sleeping for 10 sec...")
         time.sleep(5)
-        self.log.new_line("half way done sleeping")
+        print("half way done sleeping")
         time.sleep(5)
         self.permissions_url=self.generate_api_url(self.path, "get permissions")
         self.report=self.url_to_permission_report(self.permissions_url)
@@ -740,7 +752,7 @@ class Saas_admin:
 
         #update saas admin
         self.post_update(self.generate_update_post_data())
-        self.log.new_line('eg update complete')
+        print('eg update complete')
     def execute_link_post(self):
         posting_data = self.get_post_ids()
         self.post_resulting_links(posting_data)
@@ -760,15 +772,15 @@ class Saas_admin:
     def run_ss(self, link, bool):
         self.ss_user_list = self.get_ss_userlist()
         isnew_bool = self.audit_wrkspc_isnew()
-        
         if link == "none" and bool == True and isnew_bool==True:
+            # pass
             self.ss_new()
 
         elif self.proj_dict.get("ss_link") != "none":
             # pass
             self.ss_update()
     def run_print_statements(self, dict):
-        self.log.new_line(f'''
+        print(f'''
                             {dict.get('name')} PROJECT DATA:  
                             
 enum: {dict.get('enum')}, name: {dict.get('name')}
@@ -787,12 +799,13 @@ ss_link: {dict.get('ss_link')}
         self.enum=data
         if len(data) > 7:
             #data will row_id, which would happen if this was triggered via webhook
+            self.row_id=data
             self.enum = self.extract_enum_from_rowid(data)
         self.sheet_id = self.sheet_id_generator(self.enum)
         self.proj_dict = self.extract_projinfo_w_enum(self.sheet_id, self.enum)
         self.run_print_statements(self.proj_dict)
         if self.audit_skips(self.proj_dict) == True:
-            self.log.new_line(f"{self.proj_dict.get('name')} skipped b/c already updated")
+            print(f"{self.proj_dict.get('name')} skipped b/c already updated")
         else:
             self.run_ss(self.proj_dict.get("ss_link"), self.proj_dict.get("ss_bool"))
             self.run_eg(self.proj_dict.get("eg_link"), self.proj_dict.get("eg_bool"))
@@ -800,17 +813,17 @@ ss_link: {dict.get('ss_link')}
             if self.proj_dict.get('ss_link') == "none" and self.proj_dict.get('eg_link') == "none" and str(self.proj_dict.get('ss_bool')) == "False" and str(self.proj_dict.get('eg_bool')) == "False" :
                 # if there is absolutely nothing to do, just post that it was updated in check box
                 self.post_update(self.generate_update_post_data())
-            self.log.new_line(f"fineeto w/ {self.proj_dict.get('name')}")
+            print(f"fineeto w/ {self.proj_dict.get('name')}")
     def cron_run(self):
         array = self.get_row_array()
         for id in array:
             try:
                 self.run(str(id))
-                self.log.new_line("15 sec sleep between updates")
+                print("15 sec sleep between updates")
                 time.sleep(5)
             except:
                 pass
-        self.log.new_line("Cron Finished")
+        print("Cron Finished")
     def partial_run(self, data):
         '''main f(x), data is assumed to be enumerator unless it is long, then assumed to be row id from Saas Intake Forms (https://app.smartsheet.com/sheets/4X2m4ChQjgGh2gf2Hg475945rwVpV5Phmw69Gp61?view=grid)
         the function gathers a dictionary of project info (name/region/users who need access/links)
@@ -823,17 +836,18 @@ ss_link: {dict.get('ss_link')}
         self.proj_dict = self.extract_projinfo_w_enum(self.sheet_id, self.enum)
         self.run_print_statements(self.proj_dict)
         if self.audit_skips(self.proj_dict) == True:
-            self.log.new_line(f"{self.proj_dict.get('name')} skipped b/c already updated")
-        self.log.new_line(f"fineeto w/ {self.proj_dict.get('name')}")
+            print(f"{self.proj_dict.get('name')} skipped b/c already updated")
+        print(f"fineeto w/ {self.proj_dict.get('name')}")
 #endregion
     def useless(self):
         '''exists to make the other regions close nicely (the final region on a page cannot be closed if nothing is below it)'''
         pass
 
 #region dev run
-dev_bool = True
 if dev_bool == True:
     sa = Saas_admin(sensative_smartsheet_token, sensative_egnyte_token)
-    #sa.partial_run("4590362778003332")
-    sa.cron_run()
+    sa.partial_run("6136291491571588")
+    # sa.cron_run()
 #endregion
+
+#must fix issue of duplicitity!!
