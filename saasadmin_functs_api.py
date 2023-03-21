@@ -95,8 +95,9 @@ class Saas_admin:
         sup = self.try_except_pattern(proj_info_df['SUP'].values.tolist()[0])
         fm = self.try_except_pattern(proj_info_df['FM'].values.tolist()[0])
         addtl_permission = self.try_except_pattern(proj_info_df["Platform Containers addt'l Permissions"].values.tolist()[0]).split(", ")
+        requester = self.try_except_pattern(proj_info_df['NON SYS Created By'].values.tolist()[0])
 
-        users = [pm, pe, sup, fm]
+        users = [pm, pe, sup, fm, requester]
 
         #integrate this list into the users list so its a single flat list
         if str(type(addtl_permission)) == "<class 'list'>":
@@ -183,7 +184,7 @@ class Saas_admin:
         self.sheet_id =sheet_id
         self.debug = proj_info_df
         self.row_id= proj_info_df['row_id'].values.tolist()[0]
-        self.user_column_names = ["Platform Containers addt'l Permissions", 'PM', 'PE', 'SUP', 'FM']
+        self.user_column_names = ["Platform Containers addt'l Permissions", 'PM', 'PE', 'SUP', 'FM', 'NON SYS Created By']
         self.user_column_ids= [sheet.column_df.loc[sheet.column_df['title'] == column]['id'].values.tolist()[0] for column in self.user_column_names]
         region = proj_info_df['REGION'].values.tolist()[0]
         name = proj_info_df['FULL NAME'].values.tolist()[0]
@@ -834,6 +835,6 @@ ss_link: {dict.get('ss_link')}
 dev_bool = True
 if dev_bool == True:
     sa = Saas_admin(sensative_smartsheet_token, sensative_egnyte_token)
-    #sa.partial_run("4590362778003332")
-    sa.cron_run()
+    sa.partial_run("8481969118111620")
+    # sa.cron_run()
 #endregion

@@ -28,7 +28,7 @@ class Saas_admin:
         grid.token=self.smartsheet_token
         self.smart = smartsheet.Smartsheet(access_token=self.smartsheet_token)
         self.smart.errors_as_exceptions(True)
-        self.wkspc_template_id = 258350840604548
+        self.wkspc_template_id = 5301436075534212
         self.automated_wkspc_template_id = 7768425427691396
         self.saas_id = 5728420458981252 
         self.pl30_id= 3858046490306436
@@ -95,9 +95,9 @@ class Saas_admin:
         sup = self.try_except_pattern(proj_info_df['SUP'].values.tolist()[0])
         fm = self.try_except_pattern(proj_info_df['FM'].values.tolist()[0])
         addtl_permission = self.try_except_pattern(proj_info_df["Platform Containers addt'l Permissions"].values.tolist()[0]).split(", ")
+        requester = self.try_except_pattern(proj_info_df['NON SYS Created By'].values.tolist()[0])
 
-        users = [pm, pe, sup, fm]
-
+        users = [pm, pe, sup, fm, requester]
         #integrate this list into the users list so its a single flat list
         if str(type(addtl_permission)) == "<class 'list'>":
             for name in addtl_permission:
@@ -183,7 +183,7 @@ class Saas_admin:
         self.sheet_id =sheet_id
         self.debug = proj_info_df
         self.row_id= proj_info_df['row_id'].values.tolist()[0]
-        self.user_column_names = ["Platform Containers addt'l Permissions", 'PM', 'PE', 'SUP', 'FM']
+        self.user_column_names = ["Platform Containers addt'l Permissions", 'PM', 'PE', 'SUP', 'FM', 'NON SYS Created By']
         self.user_column_ids= [sheet.column_df.loc[sheet.column_df['title'] == column]['id'].values.tolist()[0] for column in self.user_column_names]
         region = proj_info_df['REGION'].values.tolist()[0]
         name = proj_info_df['FULL NAME'].values.tolist()[0]
