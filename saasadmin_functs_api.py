@@ -185,6 +185,9 @@ class Saas_admin:
         self.debug = proj_info_df
         self.row_id= proj_info_df['row_id'].values.tolist()[0]
         self.user_column_names = ["Platform Containers addt'l Permissions", 'PM', 'PE', 'SUP', 'FM', 'NON SYS Created By']
+        # Ben Rand wants full priv on all his projects!
+        if proj_info_df["REGION"].values.tolist()[0] == 'HI':
+            self.user_column_names.append("PRINCIPAL")
         self.user_column_ids= [sheet.column_df.loc[sheet.column_df['title'] == column]['id'].values.tolist()[0] for column in self.user_column_names]
         region = proj_info_df['REGION'].values.tolist()[0]
         name = proj_info_df['FULL NAME'].values.tolist()[0]
