@@ -21,7 +21,7 @@ class Saas_admin:
     def __init__(self, smartsheet_token, egnyte_token , dev_bool = False):
         raw_now = datetime.now()
         self.log=ghetto_logger("saasadmin_functs.py")
-        self.now = raw_now.strftime("%d/%m/%Y %H:%M:%S")
+        self.now = raw_now.strftime("%m/%d/%Y %H:%M:%S")
         self.dev_bool= dev_bool
         self.smartsheet_token = smartsheet_token
         self.egnyte_token = egnyte_token 
