@@ -21,7 +21,7 @@ class Saas_admin:
     def __init__(self, smartsheet_token, egnyte_token , dev_bool = False):
         raw_now = datetime.now()
         self.log=ghetto_logger("saasadmin_functs.py")
-        self.now = raw_now.strftime("%m/%d/%Y %H:%M:%S")
+        self.now = raw_now.strftime("%d/%m/%Y %H:%M:%S")
         self.dev_bool= dev_bool
         self.smartsheet_token = smartsheet_token
         self.egnyte_token = egnyte_token 
@@ -35,6 +35,7 @@ class Saas_admin:
         self.field_admins_id = 2077914675079044
         self.project_admins_id= 2231803353294724
         self.project_review_id = 1394789389232004
+        self.pythscript_checkbox_column_id=1907059135932292
         self.eg_template_path ='Shared/Projects/z_Templates/Project%20Folder%20Template' 
         self.ss_link = ""
         self.eg_link = "" 
@@ -141,7 +142,7 @@ class Saas_admin:
         return email_list
     def process_permission_emails(self, sheet_id):
         '''function that does the work of getting the user emails. Makes a huge json, uses the other functions to extract specific columns and display Object Value, then creates the email list and returns it'''
-        reduced_sheet = self.smart.Sheets.get_sheet(sheet_id, row_ids=self.row_id, column_ids = self.user_column_ids, level='2', include='objectValue').to_dict()
+        reduced_sheet = self.smart.Sheets.get_sheet(sheet_id, row_ids=self.regional_row_id, column_ids = self.user_column_ids, level='2', include='objectValue').to_dict()
         reduced_rows = [i.get('cells') for i in reduced_sheet.get('rows')]
         val_df = pd.DataFrame(self.filter_value_by_type(reduced_rows, 'objectValue'), self.user_column_names)
         email_list = self.grab_emails_from_data(val_df)
@@ -183,7 +184,7 @@ class Saas_admin:
         proj_info_df = sheet.df.loc[sheet.df['ENUMERATOR'] == enum]
         self.sheet_id =sheet_id
         self.debug = proj_info_df
-        self.row_id= proj_info_df['row_id'].values.tolist()[0]
+        self.regional_row_id= proj_info_df['row_id'].values.tolist()[0]
         self.user_column_names = ["Platform Containers addt'l Permissions", 'PM', 'PE', 'SUP', 'FM', 'NON SYS Created By']
         # Ben Rand wants full priv on all his projects!
         if proj_info_df["REGION"].values.tolist()[0] == 'HI':
@@ -379,7 +380,6 @@ class Saas_admin:
             position_of_old_name=len(split_slash)-1
             old_name = split_slash[position_of_old_name]
             final_path = re.sub(old_name, new_name, path)
-            # self.log.new_line('final path', final_path)
             return final_path
     def change_folder_name(self, url, path):
             headers = CaseInsensitiveDict()
@@ -460,7 +460,6 @@ class Saas_admin:
         return recursion_bool
     def recusively_generate_eg_user_list(self, index, eg_user_list):
         recursion_bool = self.eg_user_list_api_call(index, eg_user_list)
-        # self.log.new_line('index: ', index, " length: ", len(eg_user_list))
         if recursion_bool == True:
             new_index = int(index) + 100
             self.recusively_generate_eg_user_list(new_index, eg_user_list)
@@ -469,7 +468,6 @@ class Saas_admin:
 
     #update permission group names
     def url_to_permission_report(self, url):
-            # self.log.new_line(url, 'start')
             try:
                 headers = CaseInsensitiveDict()
                 headers["Authorization"] = f"Bearer {self.egnyte_token}"
@@ -599,12 +597,17 @@ class Saas_admin:
             state = 'NorCal'
         elif self.proj_dict.get('region') == "SOCAL":
             state = 'SoCal'
+        elif self.proj_dict.get('state') == "CA":
+            # rare case that the state is Ca but the reigon is not norcal/socal
+            state = 'NorCal'
         data = '{"groupPerms":{"' + f"{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}" + '":"Full", "State_' + state + '":"Editor", "Projects": "Editor"}}'
         resp = requests.post(url, headers=headers, data=data)
 
 
 #endregion
 #region ss post
+    def check_pyscript_column(self):
+        pass
     def get_post_ids(self):
         '''uses the regional sheet id to gather column ids for Egnyte and Smartsheet column and row Id for row with the enum we are working with'''
         sheet = grid(self.sheet_id)
@@ -659,9 +662,6 @@ class Saas_admin:
         new_row = self.smart.models.Row({'id':posting_data.get("row")})
         new_row.cells.append(new_cell)
 
-        # data={'id':post.ing_data.get("row"), 'column_id':posting_data.get("update_col_id"), 'value':'1', "strict":False}
-        # self.log.new_line(data)
-
         if str(new_row.to_dict().get("cells")) != "None":
             # Update rows
             updated_row = self.smart.Sheets.update_rows(
@@ -706,6 +706,9 @@ class Saas_admin:
             path = f"Shared/Projects/NorCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
         elif self.proj_dict.get('region') == "SOCAL":
             path = f"Shared/Projects/SoCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"  
+        elif self.proj_dict.get('state') == "CA":
+            # in the rare case that region is not cali but the state is...
+            path = f"Shared/Projects/NorCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
         self.create_folder(path)
         permission_group = self.prepare_new_permission_group()
         self.permission_group_id = self.generate_permission_group(permission_group)
@@ -764,8 +767,8 @@ class Saas_admin:
     def run_ss(self, link, bool):
         self.ss_user_list = self.get_ss_userlist()
         isnew_bool = self.audit_wrkspc_isnew()
-        
         if link == "none" and bool == True and isnew_bool==True:
+            # pass
             self.ss_new()
 
         elif self.proj_dict.get("ss_link") != "none":
@@ -788,9 +791,11 @@ ss_link: {dict.get('ss_link')}
         '''main f(x), data is assumed to be enumerator unless it is long, then assumed to be row id from Saas Intake Forms (https://app.smartsheet.com/sheets/4X2m4ChQjgGh2gf2Hg475945rwVpV5Phmw69Gp61?view=grid)
         the function gathers a dictionary of project info (name/region/users who need access/links)
         then  runs through egnyte and ss run protocol'''
+        self.log.new_line(f"self.run({data})")
         self.enum=data
         if len(data) > 7:
             #data will row_id, which would happen if this was triggered via webhook
+            self.saas_row_id=data
             self.enum = self.extract_enum_from_rowid(data)
         self.sheet_id = self.sheet_id_generator(self.enum)
         self.proj_dict = self.extract_projinfo_w_enum(self.sheet_id, self.enum)
@@ -806,6 +811,7 @@ ss_link: {dict.get('ss_link')}
                 self.post_update(self.generate_update_post_data())
             self.log.new_line(f"fineeto w/ {self.proj_dict.get('name')}")
     def cron_run(self):
+        self.log.new_line(f"self.cron_run()")
         array = self.get_row_array()
         for id in array:
             try:
@@ -819,6 +825,7 @@ ss_link: {dict.get('ss_link')}
         '''main f(x), data is assumed to be enumerator unless it is long, then assumed to be row id from Saas Intake Forms (https://app.smartsheet.com/sheets/4X2m4ChQjgGh2gf2Hg475945rwVpV5Phmw69Gp61?view=grid)
         the function gathers a dictionary of project info (name/region/users who need access/links)
         '''
+        self.log.new_line(f"self.partial_run({data})")
         self.enum=data
         if len(data) > 7:
             #data will row_id, which would happen if this was triggered via webhook
