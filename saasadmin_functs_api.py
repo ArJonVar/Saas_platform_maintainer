@@ -357,7 +357,7 @@ class Saas_admin:
             
             url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/ids/folder/{folder_id}"
             headers = CaseInsensitiveDict()
-            headers["Authorization"] = "Bearer fcqv9qnc2a7sk389xvuqp3cn"
+            headers["Authorization"] = f"Bearer {self.egnyte_token}"
             resp = requests.get(url, headers=headers)
             resp_dict = json.loads(resp.content.decode("utf-8"))
             folder_information_pretty = json.dumps(resp_dict, indent=4)
