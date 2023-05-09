@@ -146,6 +146,10 @@ class Saas_admin:
         reduced_rows = [i.get('cells') for i in reduced_sheet.get('rows')]
         val_df = pd.DataFrame(self.filter_value_by_type(reduced_rows, 'objectValue'), self.user_column_names)
         email_list = self.grab_emails_from_data(val_df)
+        try:
+            email_list.append(val_df[4].to_list()[0])
+        except:
+            pass
         email_list_processed= [email for email in email_list if not('future' in email or 'tbd' in email)]
         if len(email_list_processed) == 0:
             # doesn't work with [] or ['None'] so my email is dummy
