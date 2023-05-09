@@ -703,24 +703,27 @@ class Saas_admin:
         self.post_update(self.generate_update_post_data())
         self.log.new_line("ss update complete")
     def eg_new(self):
-        self.log.new_line(f"Creating Egnyte Folder for {self.proj_dict.get('name')}")
-        if self.proj_dict.get('state') != "CA":
-            path = f"Shared/Projects/{self.proj_dict.get('state')}/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
-        elif self.proj_dict.get('region') == "NORCAL":
-            path = f"Shared/Projects/NorCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
-        elif self.proj_dict.get('region') == "SOCAL":
-            path = f"Shared/Projects/SoCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"  
-        elif self.proj_dict.get('state') == "CA":
-            # in the rare case that region is not cali but the state is...
-            path = f"Shared/Projects/NorCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
-        self.create_folder(path)
-        permission_group = self.prepare_new_permission_group()
-        self.permission_group_id = self.generate_permission_group(permission_group)
-        self.set_permission_on_new_folder(path)
-        self.copy_template_to_new_folder(path)
-        self.restrict_move_n_delete(path)
-        self.eg_link = self.generate_folder_link(path)
-        self.log.new_line('eg creation complete')
+        try:
+            self.log.new_line(f"Creating Egnyte Folder for {self.proj_dict.get('name')}")
+            if self.proj_dict.get('state') != "CA":
+                path = f"Shared/Projects/{self.proj_dict.get('state')}/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
+            elif self.proj_dict.get('region') == "NORCAL":
+                path = f"Shared/Projects/NorCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
+            elif self.proj_dict.get('region') == "SOCAL":
+                path = f"Shared/Projects/SoCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"  
+            elif self.proj_dict.get('state') == "CA":
+                # in the rare case that region is not cali but the state is...
+                path = f"Shared/Projects/NorCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
+            self.create_folder(path)
+            permission_group = self.prepare_new_permission_group()
+            self.permission_group_id = self.generate_permission_group(permission_group)
+            self.set_permission_on_new_folder(path)
+            self.copy_template_to_new_folder(path)
+            self.restrict_move_n_delete(path)
+            self.eg_link = self.generate_folder_link(path)
+            self.log.new_line('eg creation complete')
+        except Exception as e:
+            self.log.new_line('an error occured', e)
     def eg_update(self):
         asset_name = self.proj_dict.get('name') + "_" + self.proj_dict.get('enum')
         self.log.new_line(f"updating Egnyte for {asset_name}")
