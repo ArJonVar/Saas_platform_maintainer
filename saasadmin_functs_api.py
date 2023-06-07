@@ -12,13 +12,11 @@ import time
 import pandas as pd
 from logger import ghetto_logger
 from globals import sensative_egnyte_token, sensative_smartsheet_token
-
-dev_bool = False
 #endregion
 
 class Saas_admin:
     '''This class creates and updates Smartsheet and Egnyte assets and links to project list'''
-    def __init__(self, smartsheet_token, egnyte_token , dev_bool = False):
+    def __init__(self, smartsheet_token, egnyte_token):
         raw_now = datetime.now()
         self.log=ghetto_logger("saasadmin_functs.py")
         self.now = raw_now.strftime("%m/%d/%Y %H:%M:%S")
@@ -40,6 +38,17 @@ class Saas_admin:
         self.ss_link = ""
         self.eg_link = "" 
 #region helper funcs
+    def error_handler(self, func, *args, **kwargs):
+        '''logs errors as e per function'''
+        try:
+            self.log.wrapper_log(f"{func.__name__}", "__")
+            return func(*args, **kwargs)
+        except Exception as e:
+            self.log.wrapper_log(f"{func.__name__}", f"Error: {e}")
+    def functions_to_run(self, func_list):
+        '''handles running each function once at a time through the error handler to catch exactly where errors are occuring'''
+        for func in func_list:
+            self.error_handler(func)
     def try_except_pattern(self, value):
         '''wraps "value" in a try/accept format. used when pulling  info from DF because blank columns are not added to df, so you must try/except each df inquiry'''
         try:
@@ -67,7 +76,17 @@ class Saas_admin:
             retrieved_item = self.json_id_router(path, input_type, input, output_type)
             return retrieved_item
         except:
-            return f"{input_type}: {input} did not yield a matching {output_type} item in {path}, check arguments of json_retriever_wrapper()"
+            self.log.log(f"{input_type}: {input} did not yield a matching {output_type} item in {path}, check arguments of json_retriever_wrapper()")
+            return "Error!"
+    def get_row_array(self):
+        '''gets array of row ids that have open saas status in saas intake form. Needed for prep with cron_run'''
+        sheet = grid(self.saas_id)
+        sheet.fetch_content()
+        sheet_columns = sheet.get_column_df()
+        row_ids = sheet.grid_row_ids
+        sheet.df["id"]=row_ids
+        row_id_array = sheet.df.loc[sheet.df['Saas Status'] == "Open"]['id'].tolist()
+        return row_id_array
 #endregion
 #region project data processing   
     def extract_enum_from_rowid(self, row_id):
@@ -175,7 +194,7 @@ class Saas_admin:
                 content = True
 
         except:
-            self.log.new_line("wasn't on saas_sheet")
+            self.log.log("wasn't on saas_sheet")
             content = True
 
         return content
@@ -230,14 +249,14 @@ class Saas_admin:
                 skip_bool = False
         else:
             skip_bool = False
-            self.log.new_line("Audit_skip did not find data it needed for audit")
+            self.log.log("Audit_skip did not find data it needed for audit")
         return skip_bool
 #endregion
 #region ss change components
     def get_ss_userlist(self):
         response = self.smart.Users.list_users(include_all=True)
 
-        ss_user_list = []
+        self.ss_user_list = []
         for item in response.data:
             email = item.to_dict().get("email")
             fname = self.try_except_pattern(item.to_dict().get("firstName"))
@@ -247,119 +266,105 @@ class Saas_admin:
             except:
                 name = "none"
 
-            ss_user_list.append({'email': email, "name": name})
-
-        return ss_user_list
-    def copy_template(self, name, enum):
-        new_workspace = self.smart.Workspaces.copy_workspace(
-        self.wkspc_template_id,           # workspace_id
-        smartsheet.models.ContainerDestination({
-            'new_name': f"Project_{name}_{enum}"
-          })
-        )
-
-        return new_workspace.to_dict()
-    def rename_wrkspc(self, wrkspc_id, name, enum):
-        updated_workspace = self.smart.Workspaces.update_workspace(
-         wrkspc_id,       # workspace_id
-         smartsheet.models.Workspace({
-           'name': f"Project_{name}_{enum}"
-         })
-        )
-
-        return updated_workspace
-    def find_wrkspc_id_from_enum(self, link):
+            self.ss_user_list.append({'email': email, "name": name})
+    def copy_template(self):
+        self.new_workspace = self.smart.Workspaces.copy_workspace(
+            self.wkspc_template_id,           # workspace_id
+            smartsheet.models.ContainerDestination({
+                'new_name': f"Project_{self.proj_dict.get('name')[:35]}_{self.enum}"
+                })
+            ).to_dict()
+    def new_wrkspc_func(self):
+        self.wrkspc_id = self.new_workspace.get("data").get("id")
+    def find_wrkspc_id_from_enum(self):
         get_workspace_data = self.smart.Workspaces.list_workspaces(include_all=True).to_dict()
         workspace_list = get_workspace_data.get('data')
-        id = "none"
+        self.id = "none"
         for wrkspc in workspace_list:
-            if wrkspc.get("permalink") == link:
-                id = wrkspc.get("id")
-        
-        return id
-    def ss_permission_setting(self, wrkspc_id, proj_dict, user_list):
-
-        # email_list = []
-        # for user in proj_dict.get("users"):
-        #     for user_profile in user_list:
-        #         if user == user_profile.get("name"):
-        #             email_list.append(user_profile.get("email"))
-        email_list = proj_dict.get("user_emails")
+            if wrkspc.get("permalink") == self.proj_dict.get("ss_link"):
+                self.id = wrkspc.get("id")
+    def rename_wrkspc(self):
+        #  wrkspc_id, name, enum):
+        self.updated_workspace = self.smart.Workspaces.update_workspace(
+         self.wrkspc_id,       # workspace_id
+         smartsheet.models.Workspace({
+           'name': f"Project_{self.proj_dict.get('name')}_{self.enum}"
+         })
+        )
+    def ss_permission_setting(self):
+        email_list = self.proj_dict.get("user_emails")
 
         for email in email_list:
             try:
                 response = self.smart.Workspaces.share_workspace(
-                    wrkspc_id,       # workspace_id
+                    self.wrkspc_id,       # workspace_id
                 smartsheet.models.Share({
                   'access_level': 'ADMIN',
                   'email': email,
                 })
                 )
             except ApiError:
-                self.log.new_line(f'{email} already have access to workspace')
+                self.log.log(f'{email} already have access to workspace')
         try:
             response = self.smart.Workspaces.share_workspace(
-                wrkspc_id,
+                self.wrkspc_id,
             smartsheet.models.Share({
               'access_level': 'ADMIN',
               'groupId': self.field_admins_id,
             })
             )
         except ApiError:
-            self.log.new_line('field-admins already have access to workspace')
+            self.log.log('field-admins already have access to workspace')
         try:
             response = self.smart.Workspaces.share_workspace(
-                wrkspc_id,
+                self.wrkspc_id,
             smartsheet.models.Share({
               'access_level': 'ADMIN',
               'groupId': self.project_admins_id,
             })
             )
         except ApiError:
-            self.log.new_line('project-admins already have access to workspace')
+            self.log.log('project-admins already have access to workspace')
         try:
             response = self.smart.Workspaces.share_workspace(
-                wrkspc_id,
+                self.wrkspc_id,
             smartsheet.models.Share({
               'access_level': 'EDITOR',
               'groupId': self.project_review_id,
             })
             )
         except ApiError:
-            self.log.new_line('project-review already have access to workspace')
-    def generate_ss_link(self, wrkspc_id):
-        workspace = self.smart.Workspaces.get_workspace(wrkspc_id)
-        link = workspace.to_dict().get("permalink")
-        return link
+            self.log.log('project-review already have access to workspace')
+
+    def generate_ss_link(self):
+        workspace = self.smart.Workspaces.get_workspace(self.wrkspc_id)
+        self.ss_link = workspace.to_dict().get("permalink")
     def audit_wrkspc_isnew(self):
-        isnew_bool=True
+        self.isnew_bool=True
         response = self.smart.Workspaces.list_workspaces(include_all=True)
         for workspace in response.to_dict().get("data"):
             if workspace.get("name") == f'Project_{self.proj_dict.get("name")}_{self.proj_dict.get("enum")}':
-                isnew_bool = False
-                self.log.new_line(f'a workspace audit within smartsheet revealed that Project_{self.proj_dict.get("name")}_{self.proj_dict.get("enum")} already exists')
-
-        return isnew_bool
+                self.isnew_bool = False
+                self.log.log(f'a workspace audit within smartsheet revealed that Project_{self.proj_dict.get("name")}_{self.proj_dict.get("enum")} already exists')
 #endregion
 #region eg change components
-    
     #eg base funcs
     def generate_egnyte_access_token(self):
             url = "https://dowbuilt.egnyte.com/puboauth/token"
             headers = CaseInsensitiveDict()
             headers["Content-Type"] = "application/x-www-form-urlencoded"
-            data = sensative_egnyte_instantiation 
+            data = self.egnyte_token
 
             resp = requests.post(url, headers=headers, data=data)
             resp_dict = json.loads(resp.content.decode("utf-8"))
             self.egnyte_token = resp_dict.get("access_token")
-    def generate_id_from_url(self, url):
-            input = url
+    def generate_id_from_url(self):
+            input = self.proj_dict.get("eg_link")
             split = re.split('https://dowbuilt.egnyte.com/navigate/folder/', input)
-            return split[1]
-    def generate_path_from_id(self, folder_id):
+            self.folder_id=split[1]
+    def generate_path_from_id(self):
             
-            url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/ids/folder/{folder_id}"
+            url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/ids/folder/{self.folder_id}"
             headers = CaseInsensitiveDict()
             headers["Authorization"] = f"Bearer {self.egnyte_token}"
             resp = requests.get(url, headers=headers)
@@ -368,33 +373,33 @@ class Saas_admin:
             folder_information_dict = json.loads(folder_information_pretty)
 
             return folder_information_dict.get("path")
-    def generate_api_url(self, path, type):
-            if type == "folder update":
-                api_url = 'https://dowbuilt.egnyte.com/pubapi/v1/fs'
-            if type == "get permissions":
-                api_url = 'https://dowbuilt.egnyte.com/pubapi/v2/perms'
-            # Changing spaces back to %20
-            url_path = re.sub("\s", "%20", path)
-            full_api_url = api_url + url_path
-            return full_api_url
+    def generate_folder_update_url(self):
+        api_url = 'https://dowbuilt.egnyte.com/pubapi/v1/fs'
+        # Changing spaces back to %20
+        url_path = re.sub("\s", "%20", self.path)
+        self.folder_update_url = api_url + url_path
+    def generate_permissions_url(self):
+        api_url = 'https://dowbuilt.egnyte.com/pubapi/v2/perms'
+        # Changing spaces back to %20
+        url_path = re.sub("\s", "%20", self.path)
+        self.permissions_url = api_url + url_path
     
     #folder api (new & update)
-    def oldpath_to_newpath(self, path, new_name):
-            split_slash = re.split("/", path)
+    def oldpath_to_newpath(self):
+            split_slash = re.split("/", self.path)
             position_of_old_name=len(split_slash)-1
             old_name = split_slash[position_of_old_name]
-            final_path = re.sub(old_name, new_name, path)
-            return final_path
-    def change_folder_name(self, url, path):
+            self.new_path = re.sub(old_name, self.asset_name, self.path)
+    def change_folder_name(self):
             headers = CaseInsensitiveDict()
             headers["Authorization"] = f"Bearer {self.egnyte_token}"
             headers["Content-Type"] = "application/json"
 
-            data = '{"action":"move", "destination":"' + f"{path}" + '"}'
+            data = '{"action":"move", "destination":"' + f"{self.path}" + '"}'
 
-            resp = requests.post(url, headers=headers, data=data)
-    def create_folder(self, path):
-        url=f'https://dowbuilt.egnyte.com/pubapi/v1/fs/{path}'
+            resp = requests.post(self.folder_update_url, headers=headers, data=data)
+    def create_folder(self):
+        url=f'https://dowbuilt.egnyte.com/pubapi/v1/fs/{self.path}'
         
         headers = CaseInsensitiveDict()
         headers["Authorization"] = f"Bearer {self.egnyte_token}"
@@ -403,19 +408,19 @@ class Saas_admin:
         data = '{"action":"add_folder"}'
 
         resp = requests.post(url, headers=headers, data=data)
-    def copy_template_to_new_folder(self, destination_path):
+    def copy_template_to_new_folder(self):
         url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/{self.eg_template_path}"
 
         headers = CaseInsensitiveDict()
         headers["Authorization"] = f"Bearer {self.egnyte_token}"
         headers["Content-Type"] = "application/json"
 
-        data = '{"action":"copy", "destination":"' + destination_path + '", "permissions": "inherit_from_parent"}'
+        data = '{"action":"copy", "destination":"' + self.path + '", "permissions": "inherit_from_parent"}'
 
 
         resp = requests.post(url, headers=headers, data=data)
-    def restrict_move_n_delete(self, path):
-        url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/{path}"
+    def restrict_move_n_delete(self):
+        url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/{self.path}"
 
         headers = CaseInsensitiveDict()
         headers["Authorization"] = f"Bearer {self.egnyte_token}"
@@ -424,8 +429,8 @@ class Saas_admin:
         data = '{"restrict_move_delete": "true"}'       
 
         resp = requests.patch(url, headers=headers, data=data)
-    def generate_folder_link(self, path):
-        url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/{path}"
+    def generate_folder_link(self):
+        url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/{self.path}"
 
         headers = CaseInsensitiveDict()
         headers["Authorization"] = f"Bearer {self.egnyte_token}"
@@ -436,8 +441,7 @@ class Saas_admin:
         information_pretty = json.dumps(resp_dict, indent=4)
         information_dict = json.loads(information_pretty)   
         id = information_dict.get("folder_id")
-        link = 'https://dowbuilt.egnyte.com/navigate/folder/' + id
-        return link
+        self.eg_link  = 'https://dowbuilt.egnyte.com/navigate/folder/' + id
     
     #eg permission group list
     def eg_user_list_api_call(self, index, eg_user_list):
@@ -471,20 +475,19 @@ class Saas_admin:
         return eg_user_list
 
     #update permission group names
-    def url_to_permission_report(self, url):
+    def url_to_permission_report(self):
             try:
                 headers = CaseInsensitiveDict()
                 headers["Authorization"] = f"Bearer {self.egnyte_token}"
 
-                resp = requests.get(url, headers=headers)
-                report_dict = json.loads(resp.content.decode("utf-8"))
-                return report_dict
+                resp = requests.get(self.permissions_url, headers=headers)
+                self.report_dict = json.loads(resp.content.decode("utf-8"))
             except:
-                self.log.new_line("url did not yield folder that existed")
-    def permission_report_to_full(self, report):
+                self.log.log("url did not yield folder that existed")
+    def permission_report_to_full(self):
             permission_list = []
             try:
-                for group, permissions_state in report.get('groupPerms').items():
+                for group, permissions_state in self.report_dict.get('groupPerms').items():
                     if permissions_state == "Full":
                         permission_list.append(group)
                         # full_permission_group = group
@@ -493,11 +496,11 @@ class Saas_admin:
                         permission_list.remove(item)
                     if item.find("Projects") == 0:
                         permission_list.remove(item)
-                return permission_list[0]
+                self.full_permission_group = permission_list[0]
             except:
-                self.log.new_line("no group has full permissions in this folder")
-    def find_id_from_group_name(self, group_name):
-            url_group_name = re.sub("\s", "%20", group_name)
+                self.log.log("no group has full permissions in this folder")
+    def find_id_from_group_name(self):
+            url_group_name = re.sub("\s", "%20", self.full_permission_group)
             url = 'https://dowbuilt.egnyte.com/pubapi/v2/groups?filter=displayName%20eq%20"' + f"{url_group_name}" + '"'
             headers = CaseInsensitiveDict()
             headers["Authorization"] = f"Bearer {self.egnyte_token}"
@@ -505,14 +508,14 @@ class Saas_admin:
             resp = requests.get(url, headers=headers)
             resp_dict = json.loads(resp.content.decode("utf-8"))
             id = resp_dict.get("resources")[0].get("id")
-            return id
-    def change_permission_group_name(self, new_name):
+            self.permission_group_id = id
+    def change_permission_group_name(self):
             url = 'https://dowbuilt.egnyte.com/pubapi/v2/groups/' + f"{self.permission_group_id}" 
             headers = CaseInsensitiveDict()
             headers["Authorization"] = f"Bearer {self.egnyte_token}"
             headers["Content-Type"] = "application/json"
 
-            data = '{"displayName": "' + f"{new_name}" '"}'
+            data = '{"displayName": "' + f"{self.asset_name}" '"}'
             resp = requests.patch(url, headers=headers, data=data)
     
     #update permission group members
@@ -528,10 +531,10 @@ class Saas_admin:
         information_pretty = json.dumps(resp_dict, indent=4)
         permission_members_obj = json.loads(information_pretty)
 
-        return permission_members_obj
-    def identify_permission_updates(self, permission_members_obj):
+        self.permission_members_obj = permission_members_obj
+    def identify_permission_updates(self):
         users_in_group = []
-        for user in permission_members_obj.get("members"):
+        for user in self.permission_members_obj.get("members"):
             users_in_group.append(user.get("value"))
 
         user_updates_list = []
@@ -542,12 +545,12 @@ class Saas_admin:
             if id not in users_in_group:
                 user_updates_list.append(user)
 
-        return user_updates_list
-    def update_permission_group_members_manager(self, user_updates_list):
-        for user in user_updates_list:
+        self.user_updates_list = user_updates_list
+    def update_permission_group_members_manager(self):
+        for user in self.user_updates_list:
             for user_data in self.eg_user_list:
                 if user == user_data.get("email"):
-                    self.log.new_line(f'adding {user_data.get("name")} to permission group')
+                    self.log.log(f'adding {user_data.get("name")} to permission group')
                     self.update_permission_group_members(user_data.get("id"))
     def update_permission_group_members(self,user_data):
         url = f"https://dowbuilt.egnyte.com/pubapi/v2/groups/{self.permission_group_id}"
@@ -563,35 +566,34 @@ class Saas_admin:
     
     #new permission group
     def prepare_new_permission_group(self):
-        permission_members = []
+        self.permission_members = []
         for employee in self.proj_dict.get("user_emails"):
             if employee == "none":
                 pass
             else:
                 for user in self.eg_user_list:
                     if employee == user.get("email"):
-                        permission_members.append({"value":user.get("id")})
-        return permission_members
-    def generate_permission_group(self, permission_members):
+                        self.permission_members.append({"value":user.get("id")})
+    def generate_permission_group(self):
         url = "https://dowbuilt.egnyte.com/pubapi/v2/groups"
 
         headers = CaseInsensitiveDict()
         headers["Authorization"] = f"Bearer {self.egnyte_token}"
         headers["Content-Type"] = "application/json"
 
-        if len(permission_members) == 0:
+        if len(self.permission_members) == 0:
             data_raw='{"displayName":"' +  self.proj_dict.get("name")+"_"+self.proj_dict.get("enum") + '}'
         else:
-            data_raw = '{"displayName":"' +  self.proj_dict.get("name")+"_"+self.proj_dict.get("enum")  +'", "members":' + str(permission_members) + '}'
+            data_raw = '{"displayName":"' +  self.proj_dict.get("name")+"_"+self.proj_dict.get("enum")  +'", "members":' + str(self.permission_members) + '}'
             data = re.sub("\'", '"', data_raw)
 
         resp = requests.post(url, headers=headers, data=data)
         resp_dict = json.loads(resp.content.decode("utf-8"))
         information_pretty = json.dumps(resp_dict, indent=4)
         information_dict = json.loads(information_pretty)
-        return information_dict.get("id")
-    def set_permission_on_new_folder(self, path):
-        url = f"https://dowbuilt.egnyte.com/pubapi/v2/perms/{path}"
+        self.permission_group_id = information_dict.get("id")
+    def set_permission_on_new_folder(self):
+        url = f"https://dowbuilt.egnyte.com/pubapi/v2/perms/{self.path}"
         headers = CaseInsensitiveDict()
         headers["Authorization"] = f"Bearer {self.egnyte_token}"
         headers["Content-Type"] = "application/json"
@@ -626,11 +628,11 @@ class Saas_admin:
         posting_data = {"eg" : eg_column_id, "ss" : ss_column_id, "row": row_id}
 
         return posting_data
-    def post_resulting_links(self, posting_data):
+    def post_resulting_links(self):
         new_row = self.smart.models.Row()
-        new_row.id = posting_data.get("row")
+        new_row.id = self.posting_data.get("row")
 
-        link_list = [{'column_id': posting_data.get("eg"), 'link': self.eg_link}, {'column_id': posting_data.get("ss"), 'link': self.ss_link}]
+        link_list = [{'column_id': self.posting_data.get("eg"), 'link': self.eg_link}, {'column_id': self.posting_data.get("ss"), 'link': self.ss_link}]
         for item in link_list:
             if item.get("link") != "":
                 new_cell = self.smart.models.Cell()
@@ -645,7 +647,7 @@ class Saas_admin:
             updated_row = self.smart.Sheets.update_rows(
               self.sheet_id,      # sheet_id
               [new_row])
-            self.log.new_line(f'link-post into {self.proj_dict.get("region")} Project List complete')
+            self.log.log(f'link-post into {self.proj_dict.get("region")} Project List complete')
     def generate_update_post_data(self):
         '''uses the regional sheet id to gather column ids for Egnyte and Smartsheet column and row Id for row with the enum we are working with'''
         sheet = grid(self.saas_id)
@@ -658,12 +660,10 @@ class Saas_admin:
         rows = sheet.df.loc[sheet.df['ENUMERATOR'] == self.proj_dict.get("enum")]["id"].tolist()
         #IF A CHECK DOES NOT WORK ITS B/C OF THIS!! ([0]) #problem #search #find
         row_id = rows[len(rows)-1]
-        posting_data = {"update_col_id" : update_bool_column_id,"row": row_id}
-
-        return posting_data
-    def post_update(self, posting_data):
-        new_cell = self.smart.models.Cell({'column_id' : posting_data.get("update_col_id"), 'value': "1", 'strict': False})
-        new_row = self.smart.models.Row({'id':posting_data.get("row")})
+        self.posting_data = {"update_col_id" : update_bool_column_id,"row": row_id}
+    def post_update(self):
+        new_cell = self.smart.models.Cell({'column_id' : self.posting_data.get("update_col_id"), 'value': "1", 'strict': False})
+        new_row = self.smart.models.Row({'id':self.posting_data.get("row")})
         new_row.cells.append(new_cell)
 
         if str(new_row.to_dict().get("cells")) != "None":
@@ -671,93 +671,85 @@ class Saas_admin:
             updated_row = self.smart.Sheets.update_rows(
               self.saas_id,      # sheet_id
               [new_row])
-            self.log.new_line(f'post had result of: {updated_row.message}')
-            self.log.new_line(f'checked update bool in Saas Admin Page')
-#endregion
-#region cron job prep
-    def get_row_array(self):
-        '''gets array of row ids that have open saas status in saas intake form'''
-        sheet = grid(self.saas_id)
-        sheet.fetch_content()
-        sheet_columns = sheet.get_column_df()
-        row_ids = sheet.grid_row_ids
-        sheet.df["id"]=row_ids
-        row_id_array = sheet.df.loc[sheet.df['Saas Status'] == "Open"]['id'].tolist()
-        return row_id_array
+            self.log.log(f'post had result of: {updated_row.message}')
+            self.log.log(f'checked update bool in Saas Admin Page')
 #endregion
 #region change decisions
     def ss_new(self):
-        self.log.new_line(f"Creating Smartsheet Workspace for {self.proj_dict.get('name')}")
-        new_wrkspc =  self.copy_template(self.proj_dict.get("name"), self.enum)
-        self.wrkspc_id = new_wrkspc.get("data").get("id")
-        self.ss_permission_setting(self.wrkspc_id, self.proj_dict, self.ss_user_list)
-        self.ss_link = self.generate_ss_link(self.wrkspc_id)
-        self.log.new_line("ss creation complete")
+        self.log.log(f"Creating Smartsheet Workspace for {self.proj_dict.get('name')}")
+        self.functions_to_run([
+            self.copy_template,
+            self.new_wrkspc_func,
+            self.ss_permission_setting,
+            self.generate_ss_link
+        ])
+        self.log.log("ss creation complete")
     def ss_update(self):           
-        self.log.new_line(f"Updating Smartsheet Workspace for {self.proj_dict.get('name')}")
-        self.wrkspc_id =  self.find_wrkspc_id_from_enum(self.proj_dict.get("ss_link"))
-        self.rename_wrkspc(self.wrkspc_id, self.proj_dict.get("name"), self.enum)
-        self.ss_permission_setting(self.wrkspc_id, self.proj_dict, self.ss_user_list)
-        
-        #update saas admin
-        self.post_update(self.generate_update_post_data())
-        self.log.new_line("ss update complete")
+        self.log.log(f"Updating Smartsheet Workspace for {self.proj_dict.get('name')}")
+        self.functions_to_run=([
+            self.find_wrkspc_id_from_enum,
+            self.rename_wrkspc,
+            self.ss_permission_setting,
+            #update saas admin
+            self.generate_update_post_data,
+            self.post_update
+        ])
+        self.log.log("ss update complete")
     def eg_new(self):
-        try:
-            self.log.new_line(f"Creating Egnyte Folder for {self.proj_dict.get('name')}")
-            if self.proj_dict.get('state') != "CA":
-                path = f"Shared/Projects/{self.proj_dict.get('state')}/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
-            elif self.proj_dict.get('region') == "NORCAL":
-                path = f"Shared/Projects/NorCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
-            elif self.proj_dict.get('region') == "SOCAL":
-                path = f"Shared/Projects/SoCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"  
-            elif self.proj_dict.get('state') == "CA":
-                # in the rare case that region is not cali but the state is...
-                path = f"Shared/Projects/NorCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
-            self.create_folder(path)
-            permission_group = self.prepare_new_permission_group()
-            self.permission_group_id = self.generate_permission_group(permission_group)
-            self.set_permission_on_new_folder(path)
-            self.copy_template_to_new_folder(path)
-            self.restrict_move_n_delete(path)
-            self.eg_link = self.generate_folder_link(path)
-            self.log.new_line('eg creation complete')
-        except Exception as e:
-            self.log.new_line('an error occured', e)
-    def eg_update(self):
-        asset_name = self.proj_dict.get('name') + "_" + self.proj_dict.get('enum')
-        self.log.new_line(f"updating Egnyte for {asset_name}")
-        self.log.new_line("sleeping for 5 sec...")
-        time.sleep(5)
-        folder_id = self.generate_id_from_url(self.proj_dict.get("eg_link"))
-        self.path = self.generate_path_from_id(folder_id)
+        self.log.log(f"Creating Egnyte Folder for {self.proj_dict.get('name')}")
+        if self.proj_dict.get('state') != "CA":
+            self.path = f"Shared/Projects/{self.proj_dict.get('state')}/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
+        elif self.proj_dict.get('region') == "NORCAL":
+            self.path = f"Shared/Projects/NorCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
+        elif self.proj_dict.get('region') == "SOCAL":
+            self.path = f"Shared/Projects/SoCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"  
+        elif self.proj_dict.get('state') == "CA":
+            # in the rare case that region is not cali but the state is...
+            self.path = f"Shared/Projects/NorCal/{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}"
         
-        #update permission group
-        self.log.new_line("sleeping for 10 sec...")
-        time.sleep(5)
-        self.log.new_line("half way done sleeping")
-        time.sleep(5)
-        self.permissions_url=self.generate_api_url(self.path, "get permissions")
-        self.report=self.url_to_permission_report(self.permissions_url)
-        self.full_permission_group = self.permission_report_to_full(self.report)
-        self.permission_group_id = self.find_id_from_group_name(self.full_permission_group)
-        self.permission_members_obj = self.get_permission_group_members()
-        self.user_updates_list = self.identify_permission_updates(self.permission_members_obj)
-        self.update_permission_group_members_manager(self.user_updates_list)
-        self.change_permission_group_name(asset_name)
-        
-        #update folder
-        self.new_path=self.oldpath_to_newpath(self.path, asset_name)
-        self.update_url=self.generate_api_url(self.path, "folder update")
-        self.change_folder_name(self.update_url, self.new_path)
-        self.restrict_move_n_delete(self.new_path)
+        self.functions_to_run([
+            self.create_folder,
+            self.prepare_new_permission_group,
+            self.generate_permission_group,
+            self.set_permission_on_new_folder,
+            self.copy_template_to_new_folder,
+            self.restrict_move_n_delete,
+            self.generate_folder_link
+        ])
 
-        #update saas admin
-        self.post_update(self.generate_update_post_data())
-        self.log.new_line('eg update complete')
+        self.log.log('eg creation complete')
+    def eg_update(self):
+        self.asset_name = self.proj_dict.get('name') + "_" + self.proj_dict.get('enum')
+        self.log.log(f"updating Egnyte for {self.asset_name}")
+        time.sleep(5)
+        self.functions_to_run([
+            self.generate_id_from_url,
+            self.generate_path_from_id,
+
+            #update permission group
+            self.generate_permissions_url,
+            self.url_to_permission_report,
+            self.permission_report_to_full,
+            self.find_id_from_group_name,
+            self.get_permission_group_members,
+            self.identify_permission_updates,
+            self.update_permission_group_members_manager,
+            self.change_permission_group_name,
+
+            #update folder
+            self.oldpath_to_newpath,
+            self.generate_folder_update_url,
+            self.change_folder_name,
+            self.restrict_move_n_delete,
+
+            #update saas admin
+            self.generate_update_post_data,
+            self.post_update
+        ])
+        self.log.log('eg update complete')
     def execute_link_post(self):
-        posting_data = self.get_post_ids()
-        self.post_resulting_links(posting_data)
+        self.posting_data = self.get_post_ids()
+        self.functions_to_run([self.post_resulting_links])
 
 #endregion
 #region run
@@ -773,8 +765,8 @@ class Saas_admin:
             self.eg_update()
     def run_ss(self, link, bool):
         self.ss_user_list = self.get_ss_userlist()
-        isnew_bool = self.audit_wrkspc_isnew()
-        if link == "none" and bool == True and isnew_bool==True:
+        self.audit_wrkspc_isnew()
+        if link == "none" and bool == True and self.isnew_bool==True:
             # pass
             self.ss_new()
 
@@ -782,7 +774,7 @@ class Saas_admin:
             # pass
             self.ss_update()
     def run_print_statements(self, dict):
-        self.log.new_line(f'''
+        self.log.log(f'''
                             {dict.get('name')} PROJECT DATA:  
                             
 enum: {dict.get('enum')}, name: {dict.get('name')}
@@ -798,7 +790,7 @@ ss_link: {dict.get('ss_link')}
         '''main f(x), data is assumed to be enumerator unless it is long, then assumed to be row id from Saas Intake Forms (https://app.smartsheet.com/sheets/4X2m4ChQjgGh2gf2Hg475945rwVpV5Phmw69Gp61?view=grid)
         the function gathers a dictionary of project info (name/region/users who need access/links)
         then  runs through egnyte and ss run protocol'''
-        self.log.new_line(f"self.run({data})")
+        self.log.log(f"self.run({data})")
         self.enum=data
         if len(data) > 7:
             #data will row_id, which would happen if this was triggered via webhook
@@ -808,31 +800,31 @@ ss_link: {dict.get('ss_link')}
         self.proj_dict = self.extract_projinfo_w_enum(self.sheet_id, self.enum)
         self.run_print_statements(self.proj_dict)
         if self.audit_skips(self.proj_dict) == True:
-            self.log.new_line(f"{self.proj_dict.get('name')} skipped b/c already updated")
+            self.log.log(f"{self.proj_dict.get('name')} skipped b/c already updated")
         else:
             self.run_ss(self.proj_dict.get("ss_link"), self.proj_dict.get("ss_bool"))
             self.run_eg(self.proj_dict.get("eg_link"), self.proj_dict.get("eg_bool"))
-            self.execute_link_post()
+            self.functions_to_run([self.execute_link_post])
             if self.proj_dict.get('ss_link') == "none" and self.proj_dict.get('eg_link') == "none" and str(self.proj_dict.get('ss_bool')) == "False" and str(self.proj_dict.get('eg_bool')) == "False" :
                 # if there is absolutely nothing to do, just post that it was updated in check box
                 self.post_update(self.generate_update_post_data())
-            self.log.new_line(f"fineeto w/ {self.proj_dict.get('name')}")
+            self.log.log(f"fineeto w/ {self.proj_dict.get('name')}")
     def cron_run(self):
-        self.log.new_line(f"self.cron_run()")
+        self.log.log(f"self.cron_run()")
         array = self.get_row_array()
         for id in array:
             try:
                 self.run(str(id))
-                self.log.new_line("15 sec sleep between updates")
+                self.log.log("15 sec sleep between updates")
                 time.sleep(5)
             except:
-                pass
-        self.log.new_line("Cron Finished")
+                self.log.log(f"passed {id}")
+        self.log.log("Cron Finished")
     def partial_run(self, data):
         '''main f(x), data is assumed to be enumerator unless it is long, then assumed to be row id from Saas Intake Forms (https://app.smartsheet.com/sheets/4X2m4ChQjgGh2gf2Hg475945rwVpV5Phmw69Gp61?view=grid)
         the function gathers a dictionary of project info (name/region/users who need access/links)
         '''
-        self.log.new_line(f"self.partial_run({data})")
+        self.log.log(f"self.partial_run({data})")
         self.enum=data
         if len(data) > 7:
             #data will row_id, which would happen if this was triggered via webhook
@@ -841,17 +833,19 @@ ss_link: {dict.get('ss_link')}
         self.proj_dict = self.extract_projinfo_w_enum(self.sheet_id, self.enum)
         self.run_print_statements(self.proj_dict)
         if self.audit_skips(self.proj_dict) == True:
-            self.log.new_line(f"{self.proj_dict.get('name')} skipped b/c already updated")
-        self.log.new_line(f"fineeto w/ {self.proj_dict.get('name')}")
+            self.log.log(f"{self.proj_dict.get('name')} skipped b/c already updated")
+        self.log.log(f"fineeto w/ {self.proj_dict.get('name')}")
 #endregion
     def useless(self):
         '''exists to make the other regions close nicely (the final region on a page cannot be closed if nothing is below it)'''
         pass
+
 
 #region dev run
 dev_bool = True
 if dev_bool == True:
     sa = Saas_admin(sensative_smartsheet_token, sensative_egnyte_token)
     # sa.partial_run("8481969118111620")
+    # sa.run("725079000567684")
     sa.cron_run()
 #endregion
