@@ -686,7 +686,7 @@ class Saas_admin:
         self.log.log("ss creation complete")
     def ss_update(self):           
         self.log.log(f"Updating Smartsheet Workspace for {self.proj_dict.get('name')}")
-        self.functions_to_run=([
+        self.functions_to_run([
             self.find_wrkspc_id_from_enum,
             self.rename_wrkspc,
             self.ss_permission_setting,
