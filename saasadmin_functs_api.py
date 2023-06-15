@@ -372,7 +372,7 @@ class Saas_admin:
             folder_information_pretty = json.dumps(resp_dict, indent=4)
             folder_information_dict = json.loads(folder_information_pretty)
 
-            return folder_information_dict.get("path")
+            self.path_from_id = folder_information_dict.get("path")
     def generate_folder_update_url(self):
         api_url = 'https://dowbuilt.egnyte.com/pubapi/v1/fs'
         # Changing spaces back to %20
@@ -681,7 +681,8 @@ class Saas_admin:
             self.copy_template,
             self.new_wrkspc_func,
             self.ss_permission_setting,
-            self.generate_ss_link
+            self.generate_ss_link,
+            self.execute_link_post
         ])
         self.log.log("ss creation complete")
     def ss_update(self):           
@@ -714,7 +715,8 @@ class Saas_admin:
             self.set_permission_on_new_folder,
             self.copy_template_to_new_folder,
             self.restrict_move_n_delete,
-            self.generate_folder_link
+            self.generate_folder_link,
+            self.execute_link_post
         ])
 
         self.log.log('eg creation complete')
@@ -804,7 +806,6 @@ ss_link: {dict.get('ss_link')}
         else:
             self.run_ss(self.proj_dict.get("ss_link"), self.proj_dict.get("ss_bool"))
             self.run_eg(self.proj_dict.get("eg_link"), self.proj_dict.get("eg_bool"))
-            self.functions_to_run([self.execute_link_post])
             if self.proj_dict.get('ss_link') == "none" and self.proj_dict.get('eg_link') == "none" and str(self.proj_dict.get('ss_bool')) == "False" and str(self.proj_dict.get('eg_bool')) == "False" :
                 # if there is absolutely nothing to do, just post that it was updated in check box
                 self.post_update(self.generate_update_post_data())
@@ -845,7 +846,7 @@ ss_link: {dict.get('ss_link')}
 dev_bool = True
 if dev_bool == True:
     sa = Saas_admin(sensative_smartsheet_token, sensative_egnyte_token)
-    # sa.partial_run("8481969118111620")
-    # sa.run("725079000567684")
+    # sa.partial_run("")
+    # sa.run("")
     sa.cron_run()
 #endregion
