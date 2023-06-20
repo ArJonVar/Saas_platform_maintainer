@@ -279,10 +279,10 @@ class Saas_admin:
     def find_wrkspc_id_from_enum(self):
         get_workspace_data = self.smart.Workspaces.list_workspaces(include_all=True).to_dict()
         workspace_list = get_workspace_data.get('data')
-        self.id = "none"
+        self.wrkspc_id = "none"
         for wrkspc in workspace_list:
             if wrkspc.get("permalink") == self.proj_dict.get("ss_link"):
-                self.id = wrkspc.get("id")
+                self.wrkspc_id = wrkspc.get("id")
     def rename_wrkspc(self):
         #  wrkspc_id, name, enum):
         self.updated_workspace = self.smart.Workspaces.update_workspace(
@@ -381,7 +381,7 @@ class Saas_admin:
     def generate_permissions_url(self):
         api_url = 'https://dowbuilt.egnyte.com/pubapi/v2/perms'
         # Changing spaces back to %20
-        url_path = re.sub("\s", "%20", self.path)
+        url_path = re.sub("\s", "%20", self.path_from_id)
         self.permissions_url = api_url + url_path
     
     #folder api (new & update)
@@ -846,7 +846,7 @@ ss_link: {dict.get('ss_link')}
 dev_bool = True
 if dev_bool == True:
     sa = Saas_admin(sensative_smartsheet_token, sensative_egnyte_token)
-    # sa.partial_run("")
+    sa.partial_run("7479118709084036")
     # sa.run("")
-    sa.cron_run()
+    # sa.cron_run()
 #endregion
