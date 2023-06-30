@@ -846,7 +846,7 @@ ss_link: {dict.get('ss_link')}
 dev_bool = True
 if dev_bool == True:
     sa = Saas_admin(sensative_smartsheet_token, sensative_egnyte_token)
-    sa.partial_run("7479118709084036")
+    # sa.partial_run("7479118709084036")
     # sa.run("")
-    # sa.cron_run()
+    sa.cron_run()
 #endregion
