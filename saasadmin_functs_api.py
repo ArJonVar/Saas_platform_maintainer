@@ -408,6 +408,7 @@ class Saas_admin:
         data = '{"action":"add_folder"}'
 
         resp = requests.post(url, headers=headers, data=data)
+        self.log.log(f"debug create folder: {json.dumps(json.loads(resp.content.decode('utf-8')), indent=4)}")
     def copy_template_to_new_folder(self):
         url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/{self.eg_template_path}"
 
@@ -574,6 +575,7 @@ class Saas_admin:
                 for user in self.eg_user_list:
                     if employee == user.get("email"):
                         self.permission_members.append({"value":user.get("id")})
+        self.log.log("debug prepaire permissions: {self.permission_members}")
     def generate_permission_group(self):
         url = "https://dowbuilt.egnyte.com/pubapi/v2/groups"
 
@@ -581,17 +583,25 @@ class Saas_admin:
         headers["Authorization"] = f"Bearer {self.egnyte_token}"
         headers["Content-Type"] = "application/json"
 
+        self.log.log(f"debug0: {self.permission_members}")
+
         if len(self.permission_members) == 0:
             data_raw='{"displayName":"' +  self.proj_dict.get("name")+"_"+self.proj_dict.get("enum") + '}'
+            data = re.sub("\'", '"', data_raw)
         else:
             data_raw = '{"displayName":"' +  self.proj_dict.get("name")+"_"+self.proj_dict.get("enum")  +'", "members":' + str(self.permission_members) + '}'
             data = re.sub("\'", '"', data_raw)
 
+        self.log.log(f"debug1: {data}")
+
         resp = requests.post(url, headers=headers, data=data)
+        self.log.log(f"debug2: {resp}")
         resp_dict = json.loads(resp.content.decode("utf-8"))
         information_pretty = json.dumps(resp_dict, indent=4)
         information_dict = json.loads(information_pretty)
+        self.log.log(f"debug3: {information_dict}")
         self.permission_group_id = information_dict.get("id")
+        self.log.log(f"debug4: {self.permission_group_id}")
     def set_permission_on_new_folder(self):
         url = f"https://dowbuilt.egnyte.com/pubapi/v2/perms/{self.path}"
         headers = CaseInsensitiveDict()
@@ -608,6 +618,8 @@ class Saas_admin:
             state = 'NorCal'
         data = '{"groupPerms":{"' + f"{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}" + '":"Full", "State_' + state + '":"Editor", "Projects": "Editor"}}'
         resp = requests.post(url, headers=headers, data=data)
+        self.log.log(data)
+        self.log.log(f"debug set permissions: {json.dumps(json.loads(resp.content.decode('utf-8')), indent=4)}")
 
 
 #endregion
@@ -846,7 +858,7 @@ ss_link: {dict.get('ss_link')}
 dev_bool = True
 if dev_bool == True:
     sa = Saas_admin(sensative_smartsheet_token, sensative_egnyte_token)
-    # sa.partial_run("7479118709084036")
+    # sa.partial_run("8883266534461316")
     # sa.run("")
     sa.cron_run()
 #endregion
