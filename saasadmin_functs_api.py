@@ -408,7 +408,8 @@ class Saas_admin:
         data = '{"action":"add_folder"}'
 
         resp = requests.post(url, headers=headers, data=data)
-        self.log.log(f"debug create folder: {json.dumps(json.loads(resp.content.decode('utf-8')), indent=4)}")
+        self.log.log(f"debug create_folder inputs: URL:{url} HEADERS:{headers}, DATA:{data}")
+        self.log.log(f"debug create_folder outputs: {json.dumps(json.loads(resp.content.decode('utf-8')), indent=4)}")
     def copy_template_to_new_folder(self):
         url = f"https://dowbuilt.egnyte.com/pubapi/v1/fs/{self.eg_template_path}"
 
@@ -575,7 +576,7 @@ class Saas_admin:
                 for user in self.eg_user_list:
                     if employee == user.get("email"):
                         self.permission_members.append({"value":user.get("id")})
-        self.log.log("debug prepaire permissions: {self.permission_members}")
+        self.log.log(f"debug prepaire permissions: {self.permission_members}")
     def generate_permission_group(self):
         url = "https://dowbuilt.egnyte.com/pubapi/v2/groups"
 
