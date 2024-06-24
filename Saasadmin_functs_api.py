@@ -872,5 +872,15 @@ if dev_bool == True:
     # sa.partial_run("5358076398571396")
     sa.cron_run()
 #endregion
-# this is a test.
 
+
+
+WA_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "WA_Calced", each [WA]*[Constant Ref Sheet.WA])
+NY_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "NY_Calced", each [NY]*[Constant Ref Sheet.NY])
+HI_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "HI_Calced", each [HI]*[Constant Ref Sheet.HI])
+NORCAL_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "NORCAL_Calced", each [NORCAL]*[Constant Ref Sheet.NORCAL])
+ATX_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "ATX_Calced", each [ATX]*[Constant Ref Sheet.ATX])
+ATX_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "ATX_Calced", each [ATX]*[Constant Ref Sheet.ATX])
+ATX_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "ATX_Calced", each [ATX]*[Constant Ref Sheet.ATX])
+ATX_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "ATX_Calced", each [ATX]*[Constant Ref Sheet.ATX])
+ATX_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "ATX_Calced", each [ATX]*[Constant Ref Sheet.ATX])
