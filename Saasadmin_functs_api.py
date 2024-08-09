@@ -104,6 +104,7 @@ class Saas_admin:
         sheet.fetch_content()
         proj_info_df = sheet.df.loc[sheet.df['ENUMERATOR'] == enum]
         region = proj_info_df['REGION'].values.tolist()[0]
+        self.job_type = proj_info_df['JOB TYPE'].values.tolist()[0]
         sheet_id = self.json_router_handler(path="pl3_regional_ids.json", input_type="region", input=region, output_type="sheetid")
         return sheet_id
     #region user processing 
@@ -623,7 +624,8 @@ class Saas_admin:
             # rare case that the state is Ca but the reigon is not norcal/socal
             state = 'NorCal'
         
-        data = '{"groupPerms":{"' + f"{self.proj_dict.get('name')}_{self.proj_dict.get('enum')}" + '":"Full", "State_' + state + '":"Editor", "Projects": "Editor"}}'
+        special_proj_add= ', "Special Projects Admin": "Editor"'
+        data = '{"groupPerms":{"' + f"{sa.proj_dict.get('name')}_{sa.proj_dict.get('enum')}" + '":"Full", "State_' + state + '":"Editor", "Projects": "Editor"'+ f'{special_proj_add if job_type == "Special Projects" or job_type == "Small Projects" else ""}'+'}}'
         self.log.log(f"debug 5: {data}")
 
         resp = requests.post(url, headers=headers, data=data)
@@ -873,14 +875,3 @@ if dev_bool == True:
     sa.cron_run()
 #endregion
 
-
-
-WA_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "WA_Calced", each [WA]*[Constant Ref Sheet.WA])
-NY_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "NY_Calced", each [NY]*[Constant Ref Sheet.NY])
-HI_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "HI_Calced", each [HI]*[Constant Ref Sheet.HI])
-NORCAL_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "NORCAL_Calced", each [NORCAL]*[Constant Ref Sheet.NORCAL])
-ATX_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "ATX_Calced", each [ATX]*[Constant Ref Sheet.ATX])
-ATX_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "ATX_Calced", each [ATX]*[Constant Ref Sheet.ATX])
-ATX_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "ATX_Calced", each [ATX]*[Constant Ref Sheet.ATX])
-ATX_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "ATX_Calced", each [ATX]*[Constant Ref Sheet.ATX])
-ATX_Calced = Table.AddColumn(#"Expanded Constant Ref Sheet", "ATX_Calced", each [ATX]*[Constant Ref Sheet.ATX])
